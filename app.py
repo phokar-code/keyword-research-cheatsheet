@@ -40,13 +40,37 @@ TEMPLATES = {
     }
 }
 
-# General modifiers used for naked/generic keywords
+# General modifiers used for naked/generic keywords and combinations
 GENERAL_PREFIXES = ["shop", "buy"]
 GENERAL_SUFFIXES = [
     "for sale", "online", "in south africa", 
     "for sale online", "for sale online in south africa", 
     "for sale in south africa"
 ]
+GENERAL_COMBINATIONS = [
+    "buy {phrase} south africa",
+    "shop {phrase} south africa",
+    "buy {phrase} for sale",
+    "shop {phrase} for sale",
+    "buy {phrase} for sale in south africa",
+    "shop {phrase} for sale in south africa",
+    "buy {phrase} for sale online in south africa",
+    "shop {phrase} for sale online in south africa"
+]
+
+def generate_generic_combinations(phrase):
+    """
+    Generates natural, grammatical shopping and location modifier combinations
+    for any phrase (e.g. 'womens bags' -> 'shop womens bags', 'womens bags for sale').
+    """
+    results = []
+    for gp in GENERAL_PREFIXES:
+        results.append(f"{gp} {phrase}")
+    for gs in GENERAL_SUFFIXES:
+        results.append(f"{phrase} {gs}")
+    for gc in GENERAL_COMBINATIONS:
+        results.append(gc.replace("{phrase}", phrase))
+    return results
 
 def parse_keyword_data(raw_text_or_file):
     """
@@ -210,6 +234,12 @@ with tab1:
             help="Useful for gender-exclusive products like dresses, skirts, or bras where users often search generically (e.g. 'dresses', 'dresses for sale') in addition to gendered terms ('womens dresses')."
         )
         
+        combine_generic = st.checkbox(
+            "Combine prefix & suffix with generic modifiers",
+            value=True,
+            help="Generates shopping & location variations for your prefix and suffix keywords (e.g. 'shop womens bags', 'womens bags for sale', 'shop bags for women', 'bags for women for sale')."
+        )
+        
         generate_btn = st.button("🚀 Generate Keywords", type="primary", use_container_width=True)
         
     if generate_btn:
@@ -228,15 +258,36 @@ with tab1:
             combo_results = []
             naked_results = []
             
+            gen_prefix_results = []
+            gen_suffix_results = []
+            
             for keyword in base_keywords:
+                # 1. Core prefix variations
+                kw_prefix_vars = []
                 for prefix in prefixes:
-                    prefix_results.append(f"{prefix} {keyword}")
+                    var = f"{prefix} {keyword}"
+                    prefix_results.append(var)
+                    kw_prefix_vars.append(var)
+                    
+                # 2. Core suffix variations
+                kw_suffix_vars = []
                 for suffix in suffixes:
-                    suffix_results.append(f"{keyword} {suffix}")
+                    var = f"{keyword} {suffix}"
+                    suffix_results.append(var)
+                    kw_suffix_vars.append(var)
+                    
+                # 3. Category combinations (e.g. for General template)
                 for combo in combinations:
                     combo_results.append(combo.replace("{kw}", keyword))
                 
-                # If naked / generic toggle is on
+                # 4. Combine generic modifiers with prefix & suffix variations
+                if combine_generic and template_choice != "General":
+                    for pv in kw_prefix_vars:
+                        gen_prefix_results.extend(generate_generic_combinations(pv))
+                    for sv in kw_suffix_vars:
+                        gen_suffix_results.extend(generate_generic_combinations(sv))
+                
+                # 5. Naked / generic toggle
                 if include_naked:
                     naked_results.append(keyword)
                     for gp in GENERAL_PREFIXES:
@@ -246,26 +297,52 @@ with tab1:
                         
             st.divider()
             
-            # Display primary columns
+            # Display primary audience columns
+            st.markdown("### 🏷️ Core Audience Variations")
             col_p, col_s = st.columns(2)
             
             with col_p:
                 st.subheader("Prefix Variations")
-                st.caption(f"*{len(prefix_results)} keywords — e.g. '{prefixes[0]} {base_keywords[0]}'*")
+                st.caption(f"*{len(prefix_results)} keywords — e.g. '{prefix_results[0] if prefix_results else ''}'*")
                 st.code('\n'.join(prefix_results), language=None)
                 
             with col_s:
                 st.subheader("Suffix Variations")
-                st.caption(f"*{len(suffix_results)} keywords — e.g. '{base_keywords[0]} {suffixes[0]}'*")
+                st.caption(f"*{len(suffix_results)} keywords — e.g. '{suffix_results[0] if suffix_results else ''}'*")
                 st.code('\n'.join(suffix_results), language=None)
+                
+            # Display Generic Combinations if enabled
+            if gen_prefix_results or gen_suffix_results:
+                st.divider()
+                st.markdown("### 🛒 Generic Combinations (Prefix & Suffix + Shop / Buy / For Sale)")
+                st.caption("Separated into Prefix and Suffix boxes so you can copy and compare them without Google Keyword Planner grouping them together.")
+                
+                col_gp, col_gs = st.columns(2)
+                with col_gp:
+                    st.subheader("Generic + Prefix Combinations")
+                    st.caption(f"*{len(gen_prefix_results)} keywords — e.g. '{gen_prefix_results[0]}', '{gen_prefix_results[2]}'*")
+                    st.code('\n'.join(gen_prefix_results), language=None)
+                    
+                with col_gs:
+                    st.subheader("Generic + Suffix Combinations")
+                    st.caption(f"*{len(gen_suffix_results)} keywords — e.g. '{gen_suffix_results[0]}', '{gen_suffix_results[2]}'*")
+                    st.code('\n'.join(gen_suffix_results), language=None)
+                    
+                # Unified All-in-One Box
+                with st.expander("📦 View All Generic Combinations Together (Merged in One Box)"):
+                    all_gen = gen_prefix_results + gen_suffix_results
+                    st.caption(f"*{len(all_gen)} total keywords combined*")
+                    st.code('\n'.join(all_gen), language=None)
                 
             # Extra columns for combinations and/or naked
             if combo_results or naked_results:
+                st.divider()
+                st.markdown("### 🌐 Additional Variations")
                 col_extra1, col_extra2 = st.columns(2)
                 
                 if combo_results:
                     with col_extra1:
-                        st.subheader("Combined Variations")
+                        st.subheader("Combined General Variations")
                         st.caption(f"*{len(combo_results)} keywords*")
                         st.code('\n'.join(combo_results), language=None)
                         
