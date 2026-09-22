@@ -375,11 +375,16 @@ with tab2:
     with col_upload:
         input_mode = st.radio("Choose Input Method", ["Paste Data Directly (from GKP or Excel)", "Upload CSV / TSV File"], horizontal=True)
         
-        uploaded_file = None
+        uploaded_files = []
         pasted_text = ""
         
         if input_mode == "Upload CSV / TSV File":
-            uploaded_file = st.file_uploader("Upload CSV / TSV file", type=["csv", "tsv", "txt"])
+            uploaded_files = st.file_uploader(
+                "Upload CSV / TSV file(s)", 
+                type=["csv", "tsv", "txt"], 
+                accept_multiple_files=True,
+                help="You can drag and drop or select multiple CSV/TSV files at once. Duplicate keywords across files will be automatically combined."
+            )
         else:
             pasted_text = st.text_area(
                 "Paste Google Keyword Planner Data Here",
@@ -390,20 +395,30 @@ with tab2:
     analyze_btn = st.button("📈 Run Analysis", type="primary")
     
     if analyze_btn:
-        raw_source = uploaded_file if input_mode == "Upload CSV / TSV File" else pasted_text
+        has_data = bool(uploaded_files) if input_mode == "Upload CSV / TSV File" else bool(pasted_text.strip())
         
-        if not raw_source:
-            st.warning("Please upload a file or paste your search volume data.")
+        if not has_data:
+            st.warning("Please upload at least one file or paste your search volume data.")
         elif not analyzer_base_keywords.strip():
             st.warning("Please enter at least one base keyword to group by.")
         else:
             try:
                 with st.spinner("Processing keyword volume data..."):
-                    df_raw = parse_keyword_data(raw_source)
+                    if input_mode == "Upload CSV / TSV File":
+                        dfs = []
+                        for uf in uploaded_files:
+                            dfs.append(parse_keyword_data(uf))
+                        df_raw = pd.concat(dfs, ignore_index=True)
+                        # Deduplicate across multiple files (keep highest volume if duplicate keyword exists)
+                        df_raw = df_raw.sort_values(by="Volume", ascending=False).drop_duplicates(subset=["Keyword"], keep="first")
+                    else:
+                        df_raw = parse_keyword_data(pasted_text)
+                        
                     base_list = [b.strip() for b in analyzer_base_keywords.split("\n") if b.strip()]
                     summary_df = analyze_search_volumes(df_raw, base_list)
                     
-                st.success(f"Successfully processed {len(df_raw):,} keyword rows across {len(base_list)} base keywords!")
+                file_count_msg = f" from {len(uploaded_files)} uploaded file(s)" if input_mode == "Upload CSV / TSV File" else ""
+                st.success(f"Successfully processed {len(df_raw):,} unique keyword rows{file_count_msg} across {len(base_list)} base keywords!")
                 st.divider()
                 
                 # Display Results
