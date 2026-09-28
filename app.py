@@ -72,6 +72,144 @@ def generate_generic_combinations(phrase):
         results.append(gc.replace("{phrase}", phrase))
     return results
 
+# Seasonal Events & Campaigns configuration
+SEASONAL_PRESETS = {
+    "Valentine's Day": {"name": "valentines day", "alias": "valentines"},
+    "Mother's Day": {"name": "mothers day", "alias": "mothers"},
+    "Father's Day": {"name": "fathers day", "alias": "fathers"},
+    "Black Friday": {"name": "black friday", "alias": ""},
+    "Cyber Monday": {"name": "cyber monday", "alias": ""},
+    "Christmas": {"name": "christmas", "alias": "xmas"},
+    "Easter": {"name": "easter", "alias": ""},
+    "Halloween": {"name": "halloween", "alias": ""},
+    "Back to School": {"name": "back to school", "alias": "school"},
+    "Women's Day": {"name": "womens day", "alias": ""},
+    "Heritage Day": {"name": "heritage day", "alias": "braai day"},
+    "Payday Specials": {"name": "payday", "alias": "month end"}
+}
+
+ALL_CAMPAIGN_MODIFIERS = [
+    "gifts", "shopping", "sale", "specials", "offers", 
+    "south africa", "deals", "gift ideas", "discounts", "catalogue"
+]
+
+def generate_seasonal_combinations(base_keywords, event_name, event_alias, campaign_mods, category="General"):
+    """
+    Generates comprehensive, natural seasonal and campaign variations:
+    - Core Event (e.g. 'valentines day shoes', 'shoes for valentines day')
+    - Campaign Modifiers (gifts, shopping, sale, specials, offers, south africa, deals, etc.)
+    - Seasonal Generic Combined (shop, buy, for sale, online, in south africa, etc.)
+    - Audience-specific variations (if Women, Men, Kids selected)
+    """
+    ev = event_name.lower().strip()
+    alias = event_alias.lower().strip() if event_alias else ""
+    
+    core_vars = []
+    campaign_vars = []
+    generic_vars = []
+    audience_vars = []
+    
+    # Event-level campaign keywords (once per run)
+    for m in campaign_mods:
+        campaign_vars.append(f"{ev} {m}")
+        if m != "south africa":
+            campaign_vars.append(f"{ev} {m} south africa")
+        if alias:
+            campaign_vars.append(f"{alias} {m}")
+            if m != "south africa":
+                campaign_vars.append(f"{alias} {m} south africa")
+
+    for kw in base_keywords:
+        kw_clean = kw.lower().strip()
+        if not kw_clean:
+            continue
+            
+        # 1. Seasonal Core Variations
+        core_vars.append(f"{ev} {kw_clean}")
+        core_vars.append(f"{kw_clean} for {ev}")
+        core_vars.append(f"{kw_clean} {ev}")
+        if alias:
+            core_vars.append(f"{alias} {kw_clean}")
+            core_vars.append(f"{kw_clean} for {alias}")
+            
+        # 2. Campaign Modifiers
+        for m in campaign_mods:
+            if m == "south africa":
+                campaign_vars.append(f"{ev} {kw_clean} in south africa")
+                campaign_vars.append(f"{ev} {kw_clean} south africa")
+                if alias:
+                    campaign_vars.append(f"{alias} {kw_clean} south africa")
+            else:
+                campaign_vars.append(f"{ev} {kw_clean} {m}")
+                campaign_vars.append(f"{ev} {m} {kw_clean}")
+                campaign_vars.append(f"{kw_clean} for {ev} {m}")
+                campaign_vars.append(f"{ev} {kw_clean} {m} south africa")
+                if alias:
+                    campaign_vars.append(f"{alias} {kw_clean} {m}")
+                    
+        # 3. Seasonal + Generic Combined
+        generic_vars.append(f"shop {ev} {kw_clean}")
+        generic_vars.append(f"buy {ev} {kw_clean}")
+        generic_vars.append(f"{ev} {kw_clean} for sale")
+        generic_vars.append(f"{ev} {kw_clean} online")
+        generic_vars.append(f"{ev} {kw_clean} in south africa")
+        generic_vars.append(f"{ev} {kw_clean} for sale online")
+        generic_vars.append(f"{ev} {kw_clean} for sale in south africa")
+        generic_vars.append(f"{ev} {kw_clean} for sale online in south africa")
+        generic_vars.append(f"buy {ev} {kw_clean} south africa")
+        generic_vars.append(f"shop {ev} {kw_clean} south africa")
+        generic_vars.append(f"shop {ev} {kw_clean} specials")
+        generic_vars.append(f"shop {ev} {kw_clean} sale")
+        generic_vars.append(f"buy {ev} {kw_clean} for sale")
+        generic_vars.append(f"shop {ev} {kw_clean} online")
+        generic_vars.append(f"buy {ev} {kw_clean} online")
+        if alias:
+            generic_vars.append(f"shop {alias} {kw_clean}")
+            generic_vars.append(f"buy {alias} {kw_clean}")
+            generic_vars.append(f"{alias} {kw_clean} for sale")
+            generic_vars.append(f"{alias} {kw_clean} online")
+            generic_vars.append(f"{alias} {kw_clean} in south africa")
+            generic_vars.append(f"{alias} {kw_clean} for sale online in south africa")
+            
+        # 4. Audience Variations (if applicable)
+        if category == "Women":
+            audience_vars.append(f"{ev} {kw_clean} for women")
+            audience_vars.append(f"{ev} {kw_clean} for ladies")
+            audience_vars.append(f"{ev} womens {kw_clean}")
+            audience_vars.append(f"{ev} ladies {kw_clean}")
+            audience_vars.append(f"{ev} gifts for her")
+            audience_vars.append(f"{ev} gifts for women")
+            audience_vars.append(f"{ev} {kw_clean} specials for women")
+            if alias:
+                audience_vars.append(f"{alias} gifts for her")
+                audience_vars.append(f"{alias} {kw_clean} for women")
+        elif category == "Men":
+            audience_vars.append(f"{ev} {kw_clean} for men")
+            audience_vars.append(f"{ev} {kw_clean} for gents")
+            audience_vars.append(f"{ev} mens {kw_clean}")
+            audience_vars.append(f"{ev} gifts for him")
+            audience_vars.append(f"{ev} gifts for men")
+            audience_vars.append(f"{ev} {kw_clean} specials for men")
+            if alias:
+                audience_vars.append(f"{alias} gifts for him")
+                audience_vars.append(f"{alias} {kw_clean} for men")
+        elif category == "Kids":
+            audience_vars.append(f"{ev} {kw_clean} for kids")
+            audience_vars.append(f"{ev} {kw_clean} for boys")
+            audience_vars.append(f"{ev} {kw_clean} for girls")
+            audience_vars.append(f"{ev} kids {kw_clean}")
+            audience_vars.append(f"{ev} gifts for kids")
+            if alias:
+                audience_vars.append(f"{alias} gifts for kids")
+                
+    # Deduplicate while preserving insertion order
+    core_vars = list(dict.fromkeys(core_vars))
+    campaign_vars = list(dict.fromkeys(campaign_vars))
+    generic_vars = list(dict.fromkeys(generic_vars))
+    audience_vars = list(dict.fromkeys(audience_vars))
+    
+    return core_vars, campaign_vars, generic_vars, audience_vars
+
 def parse_keyword_data(raw_text_or_file):
     """
     Parse CSV, TSV, or raw text pasted from Google Keyword Planner or Excel.
@@ -228,6 +366,29 @@ with tab1:
     with col_settings:
         template_choice = st.selectbox("Select Target Category", options=list(TEMPLATES.keys()))
         
+        seasonal_options = ["None"] + list(SEASONAL_PRESETS.keys()) + ["Custom Event..."]
+        seasonal_choice = st.selectbox(
+            "Select Seasonal Campaign / Event (Optional)", 
+            options=seasonal_options, 
+            index=0,
+            help="Select a seasonal event like Valentine's Day, Black Friday, Christmas, or enter a custom campaign."
+        )
+        
+        custom_event_name = ""
+        custom_event_alias = ""
+        if seasonal_choice == "Custom Event...":
+            custom_event_name = st.text_input("Enter Campaign / Event Name", placeholder="e.g. Spring Sale, Summer Clearance, Diwali")
+            custom_event_alias = st.text_input("Optional Short Name / Alias", placeholder="e.g. Spring")
+            
+        selected_campaign_mods = []
+        if seasonal_choice != "None":
+            selected_campaign_mods = st.multiselect(
+                "Campaign Modifiers",
+                options=ALL_CAMPAIGN_MODIFIERS,
+                default=["gifts", "shopping", "sale", "specials", "offers", "south africa", "deals", "gift ideas"],
+                help="Modifiers combined with the seasonal event and keywords (e.g. gifts, specials, sale, offers, south africa, deals)."
+            )
+            
         include_naked = st.checkbox(
             "Include 'naked' & generic variations",
             value=False,
@@ -295,6 +456,31 @@ with tab1:
                     for gs in GENERAL_SUFFIXES:
                         naked_results.append(f"{keyword} {gs}")
                         
+            # 6. Seasonal Generation (if selected)
+            seasonal_core = []
+            seasonal_camp = []
+            seasonal_gen = []
+            seasonal_aud = []
+            
+            active_event_name = ""
+            active_event_alias = ""
+            if seasonal_choice != "None":
+                if seasonal_choice == "Custom Event...":
+                    active_event_name = custom_event_name.strip()
+                    active_event_alias = custom_event_alias.strip()
+                else:
+                    active_event_name = SEASONAL_PRESETS[seasonal_choice]["name"]
+                    active_event_alias = SEASONAL_PRESETS[seasonal_choice]["alias"]
+                    
+                if active_event_name:
+                    seasonal_core, seasonal_camp, seasonal_gen, seasonal_aud = generate_seasonal_combinations(
+                        base_keywords=base_keywords,
+                        event_name=active_event_name,
+                        event_alias=active_event_alias,
+                        campaign_mods=selected_campaign_mods,
+                        category=template_choice
+                    )
+                        
             st.divider()
             
             # Display primary audience columns
@@ -334,6 +520,48 @@ with tab1:
                     st.caption(f"*{len(all_gen)} total keywords combined*")
                     st.code('\n'.join(all_gen), language=None)
                 
+            # Display Seasonal & Campaign Section if active
+            if active_event_name and (seasonal_core or seasonal_camp or seasonal_gen or seasonal_aud):
+                st.divider()
+                display_event_label = seasonal_choice if seasonal_choice != "Custom Event..." else active_event_name.title()
+                st.markdown(f"### 🎉 Seasonal & Campaign Variations: **{display_event_label}**")
+                st.caption("Organized into dedicated blocks so you can paste into Google Keyword Planner and discover top seasonal performers.")
+                
+                col_sc, col_sm = st.columns(2)
+                with col_sc:
+                    st.subheader("Seasonal Core Variations")
+                    st.caption(f"*{len(seasonal_core)} keywords — e.g. '{seasonal_core[0]}', '{seasonal_core[1]}'*")
+                    st.code('\n'.join(seasonal_core), language=None)
+                    
+                with col_sm:
+                    st.subheader("Campaign Modifiers (Specials, Sale, Gifts...)")
+                    st.caption(f"*{len(seasonal_camp)} keywords — e.g. '{seasonal_camp[0]}', '{seasonal_camp[1]}'*")
+                    st.code('\n'.join(seasonal_camp), language=None)
+                    
+                col_sg, col_sa = st.columns(2)
+                with col_sg:
+                    st.subheader("Seasonal + Generic Combinations")
+                    st.caption(f"*{len(seasonal_gen)} keywords — e.g. '{seasonal_gen[0]}', '{seasonal_gen[2]}'*")
+                    st.code('\n'.join(seasonal_gen), language=None)
+                    
+                with col_sa:
+                    if seasonal_aud:
+                        st.subheader(f"Seasonal + {template_choice} Variations")
+                        st.caption(f"*{len(seasonal_aud)} keywords — e.g. '{seasonal_aud[0]}'*")
+                        st.code('\n'.join(seasonal_aud), language=None)
+                    else:
+                        st.subheader("Seasonal South Africa Combinations")
+                        sa_combos = [f"{active_event_name} south africa", f"{active_event_name} {base_keywords[0]} south africa", f"shop {active_event_name} south africa"]
+                        st.caption(f"*{len(sa_combos)} sample location keywords*")
+                        st.code('\n'.join(sa_combos), language=None)
+                        
+                # Unified Seasonal Merged Box
+                all_seasonal = seasonal_core + seasonal_camp + seasonal_gen + seasonal_aud
+                all_seasonal_dedup = list(dict.fromkeys(all_seasonal))
+                with st.expander(f"📦 View All Seasonal Variations Together ({display_event_label})"):
+                    st.caption(f"*{len(all_seasonal_dedup)} total seasonal keywords combined*")
+                    st.code('\n'.join(all_seasonal_dedup), language=None)
+                    
             # Extra columns for combinations and/or naked
             if combo_results or naked_results:
                 st.divider()
