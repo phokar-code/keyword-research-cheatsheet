@@ -96,6 +96,7 @@ ALL_CAMPAIGN_MODIFIERS = [
 def generate_seasonal_combinations(base_keywords, event_name, event_alias, campaign_mods, category="General"):
     """
     Generates comprehensive, natural seasonal and campaign variations:
+    - Pure Seasonal Searches (e.g. 'heritage day', 'heritage day specials', 'heritage day south africa' without category/product modifiers)
     - Core Event (e.g. 'valentines day shoes', 'shoes for valentines day')
     - Campaign Modifiers (gifts, shopping, sale, specials, offers, south africa, deals, etc.)
     - Seasonal Generic Combined (shop, buy, for sale, online, in south africa, etc.)
@@ -104,20 +105,40 @@ def generate_seasonal_combinations(base_keywords, event_name, event_alias, campa
     ev = event_name.lower().strip()
     alias = event_alias.lower().strip() if event_alias else ""
     
+    pure_seasonal_vars = []
     core_vars = []
     campaign_vars = []
     generic_vars = []
     audience_vars = []
     
-    # Event-level campaign keywords (once per run)
+    # 0. Pure Seasonal Searches without category or product modifiers
+    pure_seasonal_vars.append(f"{ev}")
+    pure_seasonal_vars.append(f"{ev} south africa")
+    pure_seasonal_vars.append(f"shop {ev}")
+    pure_seasonal_vars.append(f"buy {ev}")
+    pure_seasonal_vars.append(f"{ev} online")
+    pure_seasonal_vars.append(f"{ev} for sale")
+    pure_seasonal_vars.append(f"{ev} for sale online in south africa")
+    pure_seasonal_vars.append(f"{ev} for sale in south africa")
+    
     for m in campaign_mods:
-        campaign_vars.append(f"{ev} {m}")
+        pure_seasonal_vars.append(f"{ev} {m}")
         if m != "south africa":
-            campaign_vars.append(f"{ev} {m} south africa")
-        if alias:
-            campaign_vars.append(f"{alias} {m}")
+            pure_seasonal_vars.append(f"{ev} {m} south africa")
+        pure_seasonal_vars.append(f"shop {ev} {m}")
+        pure_seasonal_vars.append(f"buy {ev} {m}")
+        
+    if alias:
+        pure_seasonal_vars.append(f"{alias}")
+        pure_seasonal_vars.append(f"{alias} south africa")
+        pure_seasonal_vars.append(f"shop {alias}")
+        pure_seasonal_vars.append(f"buy {alias}")
+        pure_seasonal_vars.append(f"{alias} online")
+        pure_seasonal_vars.append(f"{alias} for sale")
+        for m in campaign_mods:
+            pure_seasonal_vars.append(f"{alias} {m}")
             if m != "south africa":
-                campaign_vars.append(f"{alias} {m} south africa")
+                pure_seasonal_vars.append(f"{alias} {m} south africa")
 
     for kw in base_keywords:
         kw_clean = kw.lower().strip()
@@ -203,12 +224,13 @@ def generate_seasonal_combinations(base_keywords, event_name, event_alias, campa
                 audience_vars.append(f"{alias} gifts for kids")
                 
     # Deduplicate while preserving insertion order
+    pure_seasonal_vars = list(dict.fromkeys(pure_seasonal_vars))
     core_vars = list(dict.fromkeys(core_vars))
     campaign_vars = list(dict.fromkeys(campaign_vars))
     generic_vars = list(dict.fromkeys(generic_vars))
     audience_vars = list(dict.fromkeys(audience_vars))
     
-    return core_vars, campaign_vars, generic_vars, audience_vars
+    return pure_seasonal_vars, core_vars, campaign_vars, generic_vars, audience_vars
 
 def parse_keyword_data(raw_text_or_file):
     """
@@ -272,29 +294,70 @@ def parse_keyword_data(raw_text_or_file):
     df["Keyword"] = df["Keyword"].astype(str).str.strip()
     return df
 
-def analyze_search_volumes(df, base_keywords):
+CATEGORY_MODIFIERS = [
+    "womens", "ladies", "women", "woman",
+    "mens", "gents", "men", "man",
+    "kids", "children", "boys", "boy", "girls", "girl",
+    "baby", "babies", "toddler", "toddlers"
+]
+
+def analyze_search_volumes(df, base_keywords, seasonal_event_name="", separate_pure_seasonal=True):
     """
     Groups keyword volume data by base keywords and determines winners, runners-up,
-    and recommendations.
+    and recommendations. Supports dedicated breakdown for seasonal campaign searches
+    without category modifiers (e.g. 'heritage day' standalone).
     """
     results = []
+    cat_pattern = rf"\b(?:" + "|".join(CATEGORY_MODIFIERS) + r")\b"
     
-    # Sort base keywords by length descending so longer phrases match first
-    sorted_bases = sorted(base_keywords, key=lambda x: len(x), reverse=True)
-    
-    for base in sorted_bases:
-        base_clean = base.strip().lower()
-        if not base_clean:
+    # Identify known seasonal events (from presets and active event)
+    known_events = set()
+    for preset_name, data in SEASONAL_PRESETS.items():
+        known_events.add(data["name"].lower().strip())
+        if data["alias"]:
+            known_events.add(data["alias"].lower().strip())
+    if seasonal_event_name:
+        known_events.add(seasonal_event_name.lower().strip())
+        
+    processed_bases = []
+    for b in base_keywords:
+        b_clean = b.strip()
+        if not b_clean:
             continue
             
-        singular = base_clean.rstrip("s")
-        pattern = rf"\b(?:{re.escape(base_clean)}|{re.escape(singular)}s?)\b"
+        b_lower = b_clean.lower()
+        is_explicit_pure = False
+        raw_b = b_clean
+        for suffix in ["(without category modifiers)", "(no category)", "(pure)", "without category modifiers", "no category"]:
+            if suffix in b_lower:
+                is_explicit_pure = True
+                raw_b = b_lower.replace(suffix, "").strip(" -()_")
+                break
+                
+        is_seasonal = any(ev in raw_b.lower() for ev in known_events if ev)
+        
+        if is_explicit_pure:
+            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True))
+        elif is_seasonal and separate_pure_seasonal:
+            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True))
+            processed_bases.append((f"{raw_b.title()} (All Variations)", raw_b, False))
+        else:
+            processed_bases.append((b_clean, b_clean, False))
+            
+    for label, base_clean, pure_only in processed_bases:
+        base_clean_lower = base_clean.lower()
+        singular = base_clean_lower.rstrip("s")
+        pattern = rf"\b(?:{re.escape(base_clean_lower)}|{re.escape(singular)}s?)\b"
         
         matches = df[df["Keyword"].str.lower().str.contains(pattern, regex=True)].copy()
         
+        if pure_only:
+            # Filter out category/audience modifiers (e.g. women, mens, kids, etc.)
+            matches = matches[~matches["Keyword"].str.lower().str.contains(cat_pattern, regex=True)]
+            
         if matches.empty:
             results.append({
-                "Base Keyword": base,
+                "Base Keyword": label,
                 "Total Group Volume": 0,
                 "Top Variation": "N/A",
                 "Top Volume": 0,
@@ -316,7 +379,9 @@ def analyze_search_volumes(df, base_keywords):
         top3_var, top3_vol = var_list[2] if len(var_list) > 2 else ("N/A", 0)
         
         # Recommendation logic
-        if len(var_list) == 1:
+        if pure_only:
+            rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,}) [Excludes category/gender modifiers]"
+        elif len(var_list) == 1:
             rec = f"Single match: '{top1_var}' ({top1_vol:,})"
         elif top1_vol == top2_vol and top1_vol > 0:
             rec = f"Tied at #1: '{top1_var}' & '{top2_var}' ({top1_vol:,}). Alternate: '{top3_var}' ({top3_vol:,})"
@@ -327,7 +392,7 @@ def analyze_search_volumes(df, base_keywords):
             rec = "All variations show 0 search volume"
             
         results.append({
-            "Base Keyword": base,
+            "Base Keyword": label,
             "Total Group Volume": total_vol,
             "Top Variation": top1_var,
             "Top Volume": top1_vol,
@@ -457,6 +522,7 @@ with tab1:
                         naked_results.append(f"{keyword} {gs}")
                         
             # 6. Seasonal Generation (if selected)
+            pure_seasonal = []
             seasonal_core = []
             seasonal_camp = []
             seasonal_gen = []
@@ -464,22 +530,41 @@ with tab1:
             
             active_event_name = ""
             active_event_alias = ""
+            display_event_label = ""
             if seasonal_choice != "None":
                 if seasonal_choice == "Custom Event...":
                     active_event_name = custom_event_name.strip()
                     active_event_alias = custom_event_alias.strip()
+                    display_event_label = active_event_name.title()
                 else:
                     active_event_name = SEASONAL_PRESETS[seasonal_choice]["name"]
                     active_event_alias = SEASONAL_PRESETS[seasonal_choice]["alias"]
+                    display_event_label = seasonal_choice
                     
                 if active_event_name:
-                    seasonal_core, seasonal_camp, seasonal_gen, seasonal_aud = generate_seasonal_combinations(
+                    pure_seasonal, seasonal_core, seasonal_camp, seasonal_gen, seasonal_aud = generate_seasonal_combinations(
                         base_keywords=base_keywords,
                         event_name=active_event_name,
                         event_alias=active_event_alias,
                         campaign_mods=selected_campaign_mods,
                         category=template_choice
                     )
+                    
+                    st.session_state["seasonal_event_name"] = active_event_name
+                    st.session_state["seasonal_event_alias"] = active_event_alias
+                    st.session_state["seasonal_event_label"] = display_event_label
+                    
+                    # Prepend seasonal events to Tab 2 base keywords
+                    seasonal_bases = [active_event_name]
+                    if active_event_alias:
+                        seasonal_bases.append(active_event_alias)
+                    combined_bases = seasonal_bases + [b for b in base_keywords if b.lower() not in [active_event_name.lower(), active_event_alias.lower()]]
+                    st.session_state["base_keywords_text"] = "\n".join(combined_bases)
+            else:
+                st.session_state["seasonal_event_name"] = ""
+                st.session_state["seasonal_event_alias"] = ""
+                st.session_state["seasonal_event_label"] = ""
+                st.session_state["base_keywords_text"] = base_keywords_input.strip()
                         
             st.divider()
             
@@ -521,27 +606,31 @@ with tab1:
                     st.code('\n'.join(all_gen), language=None)
                 
             # Display Seasonal & Campaign Section if active
-            if active_event_name and (seasonal_core or seasonal_camp or seasonal_gen or seasonal_aud):
+            if active_event_name and (pure_seasonal or seasonal_core or seasonal_camp or seasonal_gen or seasonal_aud):
                 st.divider()
-                display_event_label = seasonal_choice if seasonal_choice != "Custom Event..." else active_event_name.title()
                 st.markdown(f"### 🎉 Seasonal & Campaign Variations: **{display_event_label}**")
                 st.caption("Organized into dedicated blocks so you can paste into Google Keyword Planner and discover top seasonal performers.")
+                
+                # Dedicated Pure Seasonal Searches box (without category modifiers)
+                st.subheader("🎯 Pure Seasonal Searches (Without Category Modifiers)")
+                st.caption(f"*{len(pure_seasonal)} standalone campaign keywords for your main seasonal landing page — e.g. '{pure_seasonal[0]}', '{pure_seasonal[1]}'*")
+                st.code('\n'.join(pure_seasonal), language=None)
                 
                 col_sc, col_sm = st.columns(2)
                 with col_sc:
                     st.subheader("Seasonal Core Variations")
-                    st.caption(f"*{len(seasonal_core)} keywords — e.g. '{seasonal_core[0]}', '{seasonal_core[1]}'*")
+                    st.caption(f"*{len(seasonal_core)} keywords — e.g. '{seasonal_core[0] if seasonal_core else ''}', '{seasonal_core[1] if len(seasonal_core)>1 else ''}'*")
                     st.code('\n'.join(seasonal_core), language=None)
                     
                 with col_sm:
                     st.subheader("Campaign Modifiers (Specials, Sale, Gifts...)")
-                    st.caption(f"*{len(seasonal_camp)} keywords — e.g. '{seasonal_camp[0]}', '{seasonal_camp[1]}'*")
+                    st.caption(f"*{len(seasonal_camp)} keywords — e.g. '{seasonal_camp[0] if seasonal_camp else ''}', '{seasonal_camp[1] if len(seasonal_camp)>1 else ''}'*")
                     st.code('\n'.join(seasonal_camp), language=None)
                     
                 col_sg, col_sa = st.columns(2)
                 with col_sg:
                     st.subheader("Seasonal + Generic Combinations")
-                    st.caption(f"*{len(seasonal_gen)} keywords — e.g. '{seasonal_gen[0]}', '{seasonal_gen[2]}'*")
+                    st.caption(f"*{len(seasonal_gen)} keywords — e.g. '{seasonal_gen[0] if seasonal_gen else ''}', '{seasonal_gen[2] if len(seasonal_gen)>2 else ''}'*")
                     st.code('\n'.join(seasonal_gen), language=None)
                     
                 with col_sa:
@@ -556,10 +645,10 @@ with tab1:
                         st.code('\n'.join(sa_combos), language=None)
                         
                 # Unified Seasonal Merged Box
-                all_seasonal = seasonal_core + seasonal_camp + seasonal_gen + seasonal_aud
+                all_seasonal = pure_seasonal + seasonal_core + seasonal_camp + seasonal_gen + seasonal_aud
                 all_seasonal_dedup = list(dict.fromkeys(all_seasonal))
                 with st.expander(f"📦 View All Seasonal Variations Together ({display_event_label})"):
-                    st.caption(f"*{len(all_seasonal_dedup)} total seasonal keywords combined*")
+                    st.caption(f"*{len(all_seasonal_dedup)} total seasonal keywords combined (including pure seasonal)*")
                     st.code('\n'.join(all_seasonal_dedup), language=None)
                     
             # Extra columns for combinations and/or naked
@@ -596,8 +685,14 @@ with tab2:
         analyzer_base_keywords = st.text_area(
             "Base Keywords to Group By (one per line)",
             value=st.session_state.get("base_keywords_text", "sneakers\nsandals\nshoes\nshirts\ntops"),
-            height=200,
+            height=180,
             help="Keywords will be matched against these base terms (including plurals)."
+        )
+        
+        separate_pure_seasonal = st.checkbox(
+            "Show seasonal searches without category modifiers (e.g. 'heritage day' standalone)",
+            value=True,
+            help="When checked, separates seasonal events (like 'heritage day' or 'valentines day') into a standalone pure search row (without 'womens', 'mens', 'kids' modifiers) alongside overall campaign searches."
         )
         
     with col_upload:
@@ -643,7 +738,13 @@ with tab2:
                         df_raw = parse_keyword_data(pasted_text)
                         
                     base_list = [b.strip() for b in analyzer_base_keywords.split("\n") if b.strip()]
-                    summary_df = analyze_search_volumes(df_raw, base_list)
+                    seasonal_in_tab2 = st.session_state.get("seasonal_event_name", "")
+                    summary_df = analyze_search_volumes(
+                        df=df_raw, 
+                        base_keywords=base_list,
+                        seasonal_event_name=seasonal_in_tab2,
+                        separate_pure_seasonal=separate_pure_seasonal
+                    )
                     
                 file_count_msg = f" from {len(uploaded_files)} uploaded file(s)" if input_mode == "Upload CSV / TSV File" else ""
                 st.success(f"Successfully processed {len(df_raw):,} unique keyword rows{file_count_msg} across {len(base_list)} base keywords!")
