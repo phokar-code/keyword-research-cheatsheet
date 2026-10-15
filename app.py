@@ -441,6 +441,74 @@ CATEGORY_MODIFIERS = [
     "baby", "babies", "toddler", "toddlers"
 ]
 
+def normalize_phrase(text):
+    """Normalizes quotes, dashes, and whitespace."""
+    t = str(text).lower()
+    t = re.sub(r"[’‘`]", "'", t)
+    return t.strip()
+
+def format_display_title(text):
+    """Formats title cleanly without uppercase 'S after apostrophe."""
+    t = str(text).strip()
+    words = t.split()
+    capitalized = []
+    for w in words:
+        if "'" in w:
+            parts = w.split("'")
+            capitalized.append(parts[0].capitalize() + "'" + parts[1].lower())
+        else:
+            capitalized.append(w.capitalize())
+    return " ".join(capitalized)
+
+def build_keyword_pattern(phrase):
+    """
+    Constructs a regex pattern that matches the phrase flexibly:
+    - Agnostic to apostrophes (e.g. 'womens' matches 'women\'s', 'womens', 'women’s')
+    - Handles singular/plural variations (e.g. 'shelves' / 'shelf', 'clothes' / 'clothing')
+    - Handles irregular plurals ('dresses' / 'dress', 'accessories' / 'accessory')
+    """
+    cleaned = normalize_phrase(phrase)
+    cleaned_no_apos = cleaned.replace("'", "")
+    
+    irregular_map = {
+        "clothes": r"(?:clothes|clothing|cloth)",
+        "clothing": r"(?:clothes|clothing|cloth)",
+        "cloth": r"(?:clothes|clothing|cloth)",
+        "shelves": r"(?:shelves|shelf)",
+        "shelf": r"(?:shelves|shelf)",
+        "dresses": r"(?:dresses|dress)",
+        "dress": r"(?:dresses|dress)",
+        "scarves": r"(?:scarves|scarf)",
+        "scarf": r"(?:scarves|scarf)",
+        "accessories": r"(?:accessories|accessory)",
+        "accessory": r"(?:accessories|accessory)",
+        "shoes": r"(?:shoes?|footwear)",
+        "shoe": r"(?:shoes?|footwear)",
+    }
+    
+    if cleaned_no_apos in irregular_map:
+        return rf"\b{irregular_map[cleaned_no_apos]}\b"
+        
+    words = cleaned_no_apos.split()
+    word_patterns = []
+    for w in words:
+        if w in irregular_map:
+            word_patterns.append(irregular_map[w])
+        elif w.endswith("ies") and len(w) > 4:
+            stem = w[:-3]
+            word_patterns.append(rf"{re.escape(stem)}(?:y|ies)")
+        elif w.endswith("es") and any(w.endswith(end) for end in ["sses", "shes", "ches", "xes", "zes"]) and len(w) > 4:
+            stem = w[:-2]
+            word_patterns.append(rf"{re.escape(stem)}(?:es)?")
+        elif w.endswith("s") and len(w) > 3:
+            stem = w[:-1]
+            word_patterns.append(rf"{re.escape(stem)}['’]?s?")
+        else:
+            word_patterns.append(rf"{re.escape(w)}['’]?s?")
+            
+    pattern_str = r"\s+".join(word_patterns)
+    return rf"\b{pattern_str}\b"
+
 def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_event_month="", separate_pure_seasonal=True, use_peak_for_seasonal=True):
     """
     Groups keyword volume data by base keywords and determines winners, runners-up,
@@ -449,24 +517,29 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
     so seasonal spikes (e.g. Valentine's Day in Feb, Heritage Day in Sep) are accurately prioritized.
     """
     results = []
-    cat_pattern = rf"\b(?:" + "|".join(CATEGORY_MODIFIERS) + r")\b"
     
-    # Map known events to their expected peak month
+    # Map known events to their expected peak month (both with and without apostrophes)
     event_month_map = {}
     known_events = set()
     for preset_name, data in SEASONAL_PRESETS.items():
         ev_name = data["name"].lower().strip()
         known_events.add(ev_name)
+        known_events.add(ev_name.replace("'", ""))
         event_month_map[ev_name] = data.get("month", "")
+        event_month_map[ev_name.replace("'", "")] = data.get("month", "")
         if data.get("alias"):
             alias_name = data["alias"].lower().strip()
             known_events.add(alias_name)
+            known_events.add(alias_name.replace("'", ""))
             event_month_map[alias_name] = data.get("month", "")
+            event_month_map[alias_name.replace("'", "")] = data.get("month", "")
             
     if seasonal_event_name:
         custom_ev = seasonal_event_name.lower().strip()
         known_events.add(custom_ev)
+        known_events.add(custom_ev.replace("'", ""))
         event_month_map[custom_ev] = seasonal_event_month or event_month_map.get(custom_ev, "")
+        event_month_map[custom_ev.replace("'", "")] = seasonal_event_month or event_month_map.get(custom_ev, "")
         
     has_peak_col = "Peak_Volume" in df.columns and (df["Peak_Volume"] > 0).any()
     has_month_col = "Peak_Month" in df.columns
@@ -486,33 +559,71 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
                 raw_b = b_lower.replace(suffix, "").strip(" -()_")
                 break
                 
+        raw_b_norm = normalize_phrase(raw_b).replace("'", "")
         matched_ev = None
         for ev in known_events:
-            if ev and ev in raw_b.lower():
+            ev_norm = normalize_phrase(ev).replace("'", "")
+            if ev_norm and (ev_norm in raw_b_norm or raw_b_norm in ev_norm):
                 matched_ev = ev
                 break
                 
         is_seasonal = (matched_ev is not None)
         expected_month = event_month_map.get(matched_ev, "") if matched_ev else ""
         
+        display_title = format_display_title(raw_b)
         if is_explicit_pure:
-            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True, is_seasonal, expected_month))
+            processed_bases.append((f"{display_title} (Without Category Modifiers)", raw_b, True, is_seasonal, expected_month))
         elif is_seasonal and separate_pure_seasonal:
-            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True, True, expected_month))
-            processed_bases.append((f"{raw_b.title()} (All Variations)", raw_b, False, True, expected_month))
+            processed_bases.append((f"{display_title} (Without Category Modifiers)", raw_b, True, True, expected_month))
+            processed_bases.append((f"{display_title} (All Variations)", raw_b, False, True, expected_month))
         else:
             processed_bases.append((b_clean, b_clean, False, is_seasonal, expected_month))
             
     for label, base_clean, pure_only, is_seasonal, expected_month in processed_bases:
-        base_clean_lower = base_clean.lower()
-        singular = base_clean_lower.rstrip("s")
-        pattern = rf"\b(?:{re.escape(base_clean_lower)}|{re.escape(singular)}s?)\b"
-        
+        pattern = build_keyword_pattern(base_clean)
         matches = df[df["Keyword"].str.lower().str.contains(pattern, regex=True)].copy()
         
         if pure_only:
-            # Filter out category/audience modifiers (e.g. women, mens, kids, etc.)
-            matches = matches[~matches["Keyword"].str.lower().str.contains(cat_pattern, regex=True)]
+            # Determine which words belong to this base keyword/event
+            base_words = set(re.findall(r"[a-z0-9]+", normalize_phrase(base_clean).replace("'", "")))
+            event_terms = set(base_words)
+            for bw in base_words:
+                event_terms.add(bw.rstrip("s"))
+                if bw.endswith("ies") and len(bw) > 3:
+                    event_terms.add(bw[:-3] + "y")
+                if "women" in bw:
+                    event_terms.add("women")
+                    event_terms.add("woman")
+                if "man" in bw or "men" in bw:
+                    event_terms.add("men")
+                    event_terms.add("man")
+                    
+            # Build exclusion list for this base: skip any modifier that is part of the event
+            excluded_mods = []
+            for mod in CATEGORY_MODIFIERS:
+                mod_clean = mod.lower().strip()
+                mod_stem = mod_clean.rstrip("s")
+                if mod_clean in event_terms or mod_stem in event_terms:
+                    continue
+                if any(mod_clean in et for et in event_terms) or any(et in mod_clean for et in event_terms):
+                    continue
+                excluded_mods.append(mod_clean)
+                
+            # Also exclude other non-seasonal base product keywords entered by the user
+            # e.g. If user entered 'shelves', 'curtains', 'sneakers', 'clothes', 'dresses'
+            for other_b in base_keywords:
+                other_clean = normalize_phrase(other_b).replace("'", "")
+                is_other_seasonal = any(ev.replace("'", "") in other_clean for ev in known_events)
+                if not is_other_seasonal and other_clean not in base_words:
+                    for ot in re.findall(r"[a-z0-9]+", other_clean):
+                        if len(ot) > 2 and ot not in event_terms:
+                            excluded_mods.append(ot)
+                            excluded_mods.append(ot.rstrip("s"))
+                            
+            excluded_mods = list(dict.fromkeys(excluded_mods))
+            if excluded_mods:
+                cat_pat = rf"\b(?:" + "|".join([re.escape(x) for x in excluded_mods]) + r")\b"
+                matches = matches[~matches["Keyword"].str.lower().str.contains(cat_pat, regex=True)]
             
         if matches.empty:
             results.append({
