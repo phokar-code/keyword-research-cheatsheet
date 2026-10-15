@@ -74,18 +74,24 @@ def generate_generic_combinations(phrase):
 
 # Seasonal Events & Campaigns configuration
 SEASONAL_PRESETS = {
-    "Valentine's Day": {"name": "valentines day", "alias": "valentines"},
-    "Mother's Day": {"name": "mothers day", "alias": "mothers"},
-    "Father's Day": {"name": "fathers day", "alias": "fathers"},
-    "Black Friday": {"name": "black friday", "alias": ""},
-    "Cyber Monday": {"name": "cyber monday", "alias": ""},
-    "Christmas": {"name": "christmas", "alias": "xmas"},
-    "Easter": {"name": "easter", "alias": ""},
-    "Halloween": {"name": "halloween", "alias": ""},
-    "Back to School": {"name": "back to school", "alias": "school"},
-    "Women's Day": {"name": "womens day", "alias": ""},
-    "Heritage Day": {"name": "heritage day", "alias": "braai day"},
-    "Payday Specials": {"name": "payday", "alias": "month end"}
+    "Women's Day": {"name": "womens day", "alias": "women's day", "month": "August"},
+    "Women's Month": {"name": "womens month", "alias": "women's month", "month": "August"},
+    "Heritage Day": {"name": "heritage day", "alias": "", "month": "September"},
+    "Braai Day": {"name": "braai day", "alias": "braai", "month": "September"},
+    "Black Friday": {"name": "black friday", "alias": "", "month": "November"},
+    "Cyber Monday": {"name": "cyber monday", "alias": "", "month": "November"},
+    "Back to School": {"name": "back to school", "alias": "school", "month": "January / December"},
+    "Festive": {"name": "festive", "alias": "festive season", "month": "December"},
+    "Christmas": {"name": "christmas", "alias": "xmas", "month": "December"},
+    "Boxing Day": {"name": "boxing day", "alias": "", "month": "December"},
+    "Valentine's Day": {"name": "valentines day", "alias": "valentines", "month": "February"},
+    "Easter": {"name": "easter", "alias": "easter weekend", "month": "March / April"},
+    "Family Day": {"name": "family day", "alias": "", "month": "April"},
+    "Mother's Day": {"name": "mothers day", "alias": "mothers", "month": "May"},
+    "Youth Day": {"name": "youth day", "alias": "", "month": "June"},
+    "Father's Day": {"name": "fathers day", "alias": "fathers", "month": "June"},
+    "Halloween": {"name": "halloween", "alias": "", "month": "October"},
+    "Payday Specials": {"name": "payday", "alias": "month end", "month": "Monthly (Month-end)"}
 }
 
 ALL_CAMPAIGN_MODIFIERS = [
@@ -232,10 +238,108 @@ def generate_seasonal_combinations(base_keywords, event_name, event_alias, campa
     
     return pure_seasonal_vars, core_vars, campaign_vars, generic_vars, audience_vars
 
+def generate_brand_combinations(base_keywords, brand="pep", category="General", active_events=None):
+    """
+    Generates high-intent branded variations for the specified brand (default: 'pep').
+    Includes:
+    - Core brand + keyword (e.g. 'pep shelves', 'shelves at pep')
+    - Brand + retail modifiers (e.g. 'pep shelves for sale', 'pep shelves online', 'pep shelves prices', 'pep shelves catalogue', 'pep shelves specials')
+    - Brand + audience variations (e.g. 'pep womens dresses', 'pep ladies dresses', 'ladies dresses at pep')
+    - Brand + seasonal variations if seasonal campaigns are active (e.g. 'pep heritage day specials', 'pep black friday deals')
+    """
+    b = brand.lower().strip()
+    if not b:
+        b = "pep"
+        
+    results = []
+    
+    for kw in base_keywords:
+        kw_clean = kw.lower().strip()
+        if not kw_clean:
+            continue
+            
+        # 1. Core Brand Phrases
+        results.append(f"{b} {kw_clean}")
+        if b == "pep":
+            results.append(f"pep home {kw_clean}")
+        results.append(f"{kw_clean} at {b}")
+        results.append(f"{kw_clean} in {b}")
+        results.append(f"{kw_clean} from {b}")
+        
+        # 2. Brand + High-Intent Shopping Modifiers
+        results.append(f"{b} {kw_clean} for sale")
+        results.append(f"{b} {kw_clean} online")
+        results.append(f"{b} {kw_clean} south africa")
+        results.append(f"{b} {kw_clean} prices")
+        results.append(f"{b} {kw_clean} price")
+        results.append(f"{b} {kw_clean} catalogue")
+        results.append(f"{b} {kw_clean} specials")
+        results.append(f"{b} {kw_clean} deals")
+        results.append(f"shop {b} {kw_clean}")
+        results.append(f"buy {b} {kw_clean}")
+        results.append(f"buy {b} {kw_clean} online")
+        results.append(f"{b} online {kw_clean}")
+        
+        # 3. Brand + Audience Template
+        if category == "Women":
+            results.append(f"{b} womens {kw_clean}")
+            results.append(f"{b} ladies {kw_clean}")
+            results.append(f"{b} {kw_clean} for women")
+            results.append(f"{b} {kw_clean} for ladies")
+            results.append(f"womens {kw_clean} at {b}")
+            results.append(f"ladies {kw_clean} at {b}")
+            results.append(f"{b} ladies {kw_clean} prices")
+            results.append(f"{b} ladies {kw_clean} specials")
+            results.append(f"{b} ladies {kw_clean} catalogue")
+            results.append(f"{b} ladies {kw_clean} for sale")
+        elif category == "Men":
+            results.append(f"{b} mens {kw_clean}")
+            results.append(f"{b} gents {kw_clean}")
+            results.append(f"{b} {kw_clean} for men")
+            results.append(f"{b} {kw_clean} for gents")
+            results.append(f"mens {kw_clean} at {b}")
+            results.append(f"gents {kw_clean} at {b}")
+            results.append(f"{b} mens {kw_clean} prices")
+            results.append(f"{b} mens {kw_clean} specials")
+            results.append(f"{b} mens {kw_clean} catalogue")
+            results.append(f"{b} mens {kw_clean} for sale")
+        elif category == "Kids":
+            results.append(f"{b} kids {kw_clean}")
+            results.append(f"{b} children {kw_clean}")
+            results.append(f"{b} boys {kw_clean}")
+            results.append(f"{b} girls {kw_clean}")
+            results.append(f"{b} baby {kw_clean}")
+            results.append(f"{b} {kw_clean} for kids")
+            results.append(f"{b} {kw_clean} for boys")
+            results.append(f"{b} {kw_clean} for girls")
+            results.append(f"{b} {kw_clean} for baby")
+            results.append(f"kids {kw_clean} at {b}")
+            results.append(f"baby {kw_clean} at {b}")
+            results.append(f"{b} kids {kw_clean} prices")
+            results.append(f"{b} kids {kw_clean} specials")
+            results.append(f"{b} kids {kw_clean} catalogue")
+            results.append(f"{b} kids {kw_clean} for sale")
+            
+        # 4. Brand + Seasonal Campaigns (if any active)
+        if active_events:
+            for ev in active_events:
+                ev_clean = ev.lower().strip()
+                if not ev_clean:
+                    continue
+                results.append(f"{b} {ev_clean} specials")
+                results.append(f"{b} {ev_clean} deals")
+                results.append(f"{b} {ev_clean} sale")
+                results.append(f"{b} {ev_clean} catalogue")
+                results.append(f"{b} {ev_clean} {kw_clean}")
+                results.append(f"{b} {kw_clean} for {ev_clean}")
+                
+    return list(dict.fromkeys(results))
+
 def parse_keyword_data(raw_text_or_file):
     """
     Parse CSV, TSV, or raw text pasted from Google Keyword Planner or Excel.
-    Extracts 'Keyword' and 'Volume' columns reliably.
+    Extracts 'Keyword', 'Volume' (Avg monthly searches), as well as
+    'Peak_Volume' and 'Peak_Month' from historical monthly search columns if present.
     """
     if hasattr(raw_text_or_file, "read"):
         content = raw_text_or_file.read()
@@ -292,6 +396,42 @@ def parse_keyword_data(raw_text_or_file):
     )
     
     df["Keyword"] = df["Keyword"].astype(str).str.strip()
+    
+    # Detect historical monthly search columns (e.g. 'Searches: Sep 2024', 'Jan 2024', '2024-09')
+    month_pattern = re.compile(
+        r'(?:searches:\s*)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember))\b.*\d{2,4}|\b\d{4}-\d{2}\b',
+        re.I
+    )
+    month_cols = [c for c in df.columns if c not in ["Keyword", "Volume"] and month_pattern.search(str(c))]
+    
+    if month_cols:
+        for mc in month_cols:
+            df[mc] = (
+                df[mc]
+                .astype(str)
+                .str.replace(",", "", regex=False)
+                .str.extract(r"(\d+)", expand=False)
+                .fillna(0)
+                .astype(int)
+            )
+            
+        def extract_peak_info(row):
+            vals = row[month_cols]
+            if vals.empty or vals.max() == 0:
+                return row["Volume"], ""
+            best_col = vals.idxmax()
+            best_val = int(vals[best_col])
+            # Clean month name, e.g. 'Searches: Sep 2024' -> 'Sep 2024'
+            clean_m = re.sub(r'(?i)^searches:\s*', '', str(best_col)).strip()
+            return best_val, clean_m
+            
+        peak_tuples = df.apply(extract_peak_info, axis=1)
+        df["Peak_Volume"] = [t[0] for t in peak_tuples]
+        df["Peak_Month"] = [t[1] for t in peak_tuples]
+    else:
+        df["Peak_Volume"] = df["Volume"]
+        df["Peak_Month"] = ""
+        
     return df
 
 CATEGORY_MODIFIERS = [
@@ -301,24 +441,36 @@ CATEGORY_MODIFIERS = [
     "baby", "babies", "toddler", "toddlers"
 ]
 
-def analyze_search_volumes(df, base_keywords, seasonal_event_name="", separate_pure_seasonal=True):
+def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_event_month="", separate_pure_seasonal=True, use_peak_for_seasonal=True):
     """
     Groups keyword volume data by base keywords and determines winners, runners-up,
     and recommendations. Supports dedicated breakdown for seasonal campaign searches
-    without category modifiers (e.g. 'heritage day' standalone).
+    without category modifiers, and leverages highest peak monthly search volume
+    so seasonal spikes (e.g. Valentine's Day in Feb, Heritage Day in Sep) are accurately prioritized.
     """
     results = []
     cat_pattern = rf"\b(?:" + "|".join(CATEGORY_MODIFIERS) + r")\b"
     
-    # Identify known seasonal events (from presets and active event)
+    # Map known events to their expected peak month
+    event_month_map = {}
     known_events = set()
     for preset_name, data in SEASONAL_PRESETS.items():
-        known_events.add(data["name"].lower().strip())
-        if data["alias"]:
-            known_events.add(data["alias"].lower().strip())
+        ev_name = data["name"].lower().strip()
+        known_events.add(ev_name)
+        event_month_map[ev_name] = data.get("month", "")
+        if data.get("alias"):
+            alias_name = data["alias"].lower().strip()
+            known_events.add(alias_name)
+            event_month_map[alias_name] = data.get("month", "")
+            
     if seasonal_event_name:
-        known_events.add(seasonal_event_name.lower().strip())
+        custom_ev = seasonal_event_name.lower().strip()
+        known_events.add(custom_ev)
+        event_month_map[custom_ev] = seasonal_event_month or event_month_map.get(custom_ev, "")
         
+    has_peak_col = "Peak_Volume" in df.columns and (df["Peak_Volume"] > 0).any()
+    has_month_col = "Peak_Month" in df.columns
+    
     processed_bases = []
     for b in base_keywords:
         b_clean = b.strip()
@@ -334,17 +486,24 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", separate_p
                 raw_b = b_lower.replace(suffix, "").strip(" -()_")
                 break
                 
-        is_seasonal = any(ev in raw_b.lower() for ev in known_events if ev)
+        matched_ev = None
+        for ev in known_events:
+            if ev and ev in raw_b.lower():
+                matched_ev = ev
+                break
+                
+        is_seasonal = (matched_ev is not None)
+        expected_month = event_month_map.get(matched_ev, "") if matched_ev else ""
         
         if is_explicit_pure:
-            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True))
+            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True, is_seasonal, expected_month))
         elif is_seasonal and separate_pure_seasonal:
-            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True))
-            processed_bases.append((f"{raw_b.title()} (All Variations)", raw_b, False))
+            processed_bases.append((f"{raw_b.title()} (Without Category Modifiers)", raw_b, True, True, expected_month))
+            processed_bases.append((f"{raw_b.title()} (All Variations)", raw_b, False, True, expected_month))
         else:
-            processed_bases.append((b_clean, b_clean, False))
+            processed_bases.append((b_clean, b_clean, False, is_seasonal, expected_month))
             
-    for label, base_clean, pure_only in processed_bases:
+    for label, base_clean, pure_only, is_seasonal, expected_month in processed_bases:
         base_clean_lower = base_clean.lower()
         singular = base_clean_lower.rstrip("s")
         pattern = rf"\b(?:{re.escape(base_clean_lower)}|{re.escape(singular)}s?)\b"
@@ -365,22 +524,55 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", separate_p
                 "Second Volume": 0,
                 "Third Highest": "N/A",
                 "Third Volume": 0,
+                "Peak Month / Timing": expected_month if is_seasonal else "Evergreen (Year-Round)",
                 "Recommendation / Insight": "No matching keywords found in data"
             })
             continue
             
-        matches = matches.sort_values(by="Volume", ascending=False).drop_duplicates(subset=["Keyword"])
+        # Decide which volume column to prioritize
+        use_peak = is_seasonal and use_peak_for_seasonal and has_peak_col
+        ranking_col = "Peak_Volume" if use_peak else "Volume"
         
-        total_vol = int(matches["Volume"].sum())
-        var_list = matches[["Keyword", "Volume"]].values.tolist()
+        matches = matches.sort_values(by=ranking_col, ascending=False).drop_duplicates(subset=["Keyword"])
         
-        top1_var, top1_vol = var_list[0] if len(var_list) > 0 else ("N/A", 0)
-        top2_var, top2_vol = var_list[1] if len(var_list) > 1 else ("N/A", 0)
-        top3_var, top3_vol = var_list[2] if len(var_list) > 2 else ("N/A", 0)
+        total_vol = int(matches[ranking_col].sum())
         
+        # Build variable list: [Keyword, ranking_volume, avg_volume, peak_month]
+        cols_to_extract = ["Keyword", ranking_col, "Volume"]
+        if has_month_col:
+            cols_to_extract.append("Peak_Month")
+        else:
+            matches["Peak_Month"] = ""
+            cols_to_extract.append("Peak_Month")
+            
+        var_list = matches[cols_to_extract].values.tolist()
+        
+        top1_var, top1_vol, top1_avg, top1_m = var_list[0] if len(var_list) > 0 else ("N/A", 0, 0, "")
+        top2_var, top2_vol, top2_avg, top2_m = var_list[1] if len(var_list) > 1 else ("N/A", 0, 0, "")
+        top3_var, top3_vol, top3_avg, top3_m = var_list[2] if len(var_list) > 2 else ("N/A", 0, 0, "")
+        
+        # Timing / Peak Month resolution
+        if is_seasonal:
+            if top1_m:
+                peak_month_str = f"{expected_month or top1_m} (Peak: {top1_m})"
+            elif expected_month:
+                peak_month_str = f"{expected_month} (Expected Peak)"
+            else:
+                peak_month_str = "Seasonal Campaign"
+        else:
+            peak_month_str = "Evergreen (Year-Round)"
+            
         # Recommendation logic
         if pure_only:
-            rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,}) [Excludes category/gender modifiers]"
+            if use_peak and top1_m and top1_vol > top1_avg:
+                rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg). Excludes category modifiers."
+            elif expected_month:
+                rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,} searches). Peak month: {expected_month}. Excludes category modifiers."
+            else:
+                rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,}) [Excludes category/gender modifiers]"
+        elif is_seasonal and use_peak and top1_m and top1_vol > top1_avg:
+            lead = ((top1_vol - top2_vol) / top2_vol * 100) if top2_vol > 0 else 100
+            rec = f"Top Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
         elif len(var_list) == 1:
             rec = f"Single match: '{top1_var}' ({top1_vol:,})"
         elif top1_vol == top2_vol and top1_vol > 0:
@@ -400,6 +592,7 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", separate_p
             "Second Volume": top2_vol,
             "Third Highest": top3_var,
             "Third Volume": top3_vol,
+            "Peak Month / Timing": peak_month_str,
             "Recommendation / Insight": rec
         })
         
@@ -411,7 +604,7 @@ st.set_page_config(page_title="Keyword Research Cheat Sheet", layout="wide", pag
 st.title("🔍 Keyword Research Cheat Sheet & Analyzer")
 st.write("Generate bulk keywords for Google Keyword Planner, then analyze search volume exports to pick the top variations.")
 
-tab1, tab2 = st.tabs(["📝 1. Generate Keywords", "📊 2. Analyze Search Volumes"])
+tab1, tab2, tab3 = st.tabs(["📝 1. Generate Keywords", "📊 2. Analyze Search Volumes", "📖 3. Tutorial & Copywriter Guide"])
 
 # ---------------- TAB 1: KEYWORD GENERATOR ----------------
 with tab1:
@@ -431,22 +624,32 @@ with tab1:
     with col_settings:
         template_choice = st.selectbox("Select Target Category", options=list(TEMPLATES.keys()))
         
-        seasonal_options = ["None"] + list(SEASONAL_PRESETS.keys()) + ["Custom Event..."]
+        all_seasonal_toggle = st.checkbox(
+            "🌟 Pick ALL Seasonal Campaigns",
+            value=False,
+            help="When checked, automatically generates variations across ALL 16+ seasonal campaigns (Women's Day, Heritage Day, Braai Day, Black Friday, Christmas, Valentine's Day, etc.) at once!"
+        )
+        
+        seasonal_options = ["None", "🌟 All Seasonal Campaigns"] + list(SEASONAL_PRESETS.keys()) + ["Custom Event..."]
+        default_seasonal_idx = 1 if all_seasonal_toggle else 0
         seasonal_choice = st.selectbox(
             "Select Seasonal Campaign / Event (Optional)", 
             options=seasonal_options, 
-            index=0,
-            help="Select a seasonal event like Valentine's Day, Black Friday, Christmas, or enter a custom campaign."
+            index=default_seasonal_idx,
+            help="Select a specific seasonal event or choose 'All Seasonal Campaigns' to cover all campaigns."
         )
         
         custom_event_name = ""
         custom_event_alias = ""
-        if seasonal_choice == "Custom Event...":
+        custom_event_month = ""
+        if seasonal_choice == "Custom Event..." and not all_seasonal_toggle:
             custom_event_name = st.text_input("Enter Campaign / Event Name", placeholder="e.g. Spring Sale, Summer Clearance, Diwali")
             custom_event_alias = st.text_input("Optional Short Name / Alias", placeholder="e.g. Spring")
+            custom_event_month = st.text_input("Peak Month (Optional)", placeholder="e.g. October, March")
             
         selected_campaign_mods = []
-        if seasonal_choice != "None":
+        is_seasonal_active = (seasonal_choice != "None") or all_seasonal_toggle
+        if is_seasonal_active:
             selected_campaign_mods = st.multiselect(
                 "Campaign Modifiers",
                 options=ALL_CAMPAIGN_MODIFIERS,
@@ -465,6 +668,20 @@ with tab1:
             value=True,
             help="Generates shopping & location variations for your prefix and suffix keywords (e.g. 'shop womens bags', 'womens bags for sale', 'shop bags for women', 'bags for women for sale')."
         )
+        
+        include_brand = st.checkbox(
+            "Include Brand Terms ('pep')",
+            value=False,
+            help="Adds branded variations like 'pep shelves', 'pep shelves for sale', 'shelves at pep', 'pep online shelves', etc."
+        )
+        
+        brand_name = "pep"
+        if include_brand:
+            brand_name = st.text_input(
+                "Brand Name", 
+                value="pep", 
+                help="Default is 'pep'. Change this if you need variations for another brand."
+            )
         
         generate_btn = st.button("🚀 Generate Keywords", type="primary", use_container_width=True)
         
@@ -528,17 +745,58 @@ with tab1:
             seasonal_gen = []
             seasonal_aud = []
             
+            is_all_seasonal = all_seasonal_toggle or (seasonal_choice == "🌟 All Seasonal Campaigns")
             active_event_name = ""
             active_event_alias = ""
             display_event_label = ""
-            if seasonal_choice != "None":
+            
+            if is_all_seasonal:
+                active_event_name = "All Seasonal Campaigns"
+                display_event_label = "All Seasonal Campaigns (16+ Events)"
+                
+                for preset_label, preset_info in SEASONAL_PRESETS.items():
+                    p_pure, p_core, p_camp, p_gen, p_aud = generate_seasonal_combinations(
+                        base_keywords=base_keywords,
+                        event_name=preset_info["name"],
+                        event_alias=preset_info.get("alias", ""),
+                        campaign_mods=selected_campaign_mods,
+                        category=template_choice
+                    )
+                    pure_seasonal.extend(p_pure)
+                    seasonal_core.extend(p_core)
+                    seasonal_camp.extend(p_camp)
+                    seasonal_gen.extend(p_gen)
+                    seasonal_aud.extend(p_aud)
+                    
+                pure_seasonal = list(dict.fromkeys(pure_seasonal))
+                seasonal_core = list(dict.fromkeys(seasonal_core))
+                seasonal_camp = list(dict.fromkeys(seasonal_camp))
+                seasonal_gen = list(dict.fromkeys(seasonal_gen))
+                seasonal_aud = list(dict.fromkeys(seasonal_aud))
+                
+                st.session_state["seasonal_event_name"] = "All Seasonal Campaigns"
+                st.session_state["seasonal_event_alias"] = ""
+                st.session_state["seasonal_event_month"] = ""
+                st.session_state["seasonal_event_label"] = display_event_label
+                
+                # Prepend all seasonal campaign names to Tab 2 base keywords
+                seasonal_bases = []
+                for p_info in SEASONAL_PRESETS.values():
+                    if p_info["name"] not in seasonal_bases:
+                        seasonal_bases.append(p_info["name"])
+                combined_bases = seasonal_bases + [b for b in base_keywords if b.lower() not in [s.lower() for s in seasonal_bases]]
+                st.session_state["base_keywords_text"] = "\n".join(combined_bases)
+                
+            elif seasonal_choice != "None":
                 if seasonal_choice == "Custom Event...":
                     active_event_name = custom_event_name.strip()
                     active_event_alias = custom_event_alias.strip()
+                    active_event_month = custom_event_month.strip()
                     display_event_label = active_event_name.title()
                 else:
                     active_event_name = SEASONAL_PRESETS[seasonal_choice]["name"]
                     active_event_alias = SEASONAL_PRESETS[seasonal_choice]["alias"]
+                    active_event_month = SEASONAL_PRESETS[seasonal_choice].get("month", "")
                     display_event_label = seasonal_choice
                     
                 if active_event_name:
@@ -552,6 +810,7 @@ with tab1:
                     
                     st.session_state["seasonal_event_name"] = active_event_name
                     st.session_state["seasonal_event_alias"] = active_event_alias
+                    st.session_state["seasonal_event_month"] = active_event_month
                     st.session_state["seasonal_event_label"] = display_event_label
                     
                     # Prepend seasonal events to Tab 2 base keywords
@@ -563,8 +822,25 @@ with tab1:
             else:
                 st.session_state["seasonal_event_name"] = ""
                 st.session_state["seasonal_event_alias"] = ""
+                st.session_state["seasonal_event_month"] = ""
                 st.session_state["seasonal_event_label"] = ""
                 st.session_state["base_keywords_text"] = base_keywords_input.strip()
+                
+            # 7. Branded Generation (if selected)
+            brand_results = []
+            if include_brand:
+                active_events_for_brand = []
+                if is_all_seasonal:
+                    active_events_for_brand = [p["name"] for p in SEASONAL_PRESETS.values()]
+                elif active_event_name:
+                    active_events_for_brand = [active_event_name]
+                    
+                brand_results = generate_brand_combinations(
+                    base_keywords=base_keywords,
+                    brand=brand_name,
+                    category=template_choice,
+                    active_events=active_events_for_brand
+                )
                         
             st.divider()
             
@@ -670,6 +946,33 @@ with tab1:
                         st.caption(f"*{len(naked_results)} keywords — e.g. '{base_keywords[0]}', 'shop {base_keywords[0]}', '{base_keywords[0]} for sale'*")
                         st.code('\n'.join(naked_results), language=None)
                         
+            # Display Branded Variations if enabled
+            if brand_results:
+                st.divider()
+                st.markdown(f"### 🏷️ Branded Variations ({brand_name.upper()})")
+                st.caption(f"Dedicated branded keywords for **{brand_name.upper()}** — copy and query these separately in Google Keyword Planner so non-branded and branded search volumes are not conflated.")
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    st.subheader(f"Core {brand_name.upper()} & Retail Variations")
+                    b_core = [b for b in brand_results if not any(w in b for w in ["womens", "ladies", "mens", "gents", "kids", "children", "boys", "girls", "baby"])]
+                    if not b_core:
+                        b_core = brand_results[:len(brand_results)//2]
+                    st.caption(f"*{len(b_core)} keywords — e.g. '{b_core[0] if b_core else ''}', '{b_core[1] if len(b_core)>1 else ''}'*")
+                    st.code('\n'.join(b_core), language=None)
+                    
+                with col_b2:
+                    st.subheader(f"Audience & Campaign {brand_name.upper()} Variations")
+                    b_aud = [b for b in brand_results if b not in b_core]
+                    if not b_aud:
+                        b_aud = brand_results[len(brand_results)//2:]
+                    st.caption(f"*{len(b_aud)} keywords — e.g. '{b_aud[0] if b_aud else ''}'*")
+                    st.code('\n'.join(b_aud), language=None)
+                    
+                with st.expander(f"📦 View All Branded Variations Together ({brand_name.upper()})"):
+                    st.caption(f"*{len(brand_results)} total branded keywords*")
+                    st.code('\n'.join(brand_results), language=None)
+                        
             st.info("💡 **Tip:** Copy each box above into Google Keyword Planner separately so search volumes are not grouped together. Once you download or copy your search volume data, head over to the **'Analyze Search Volumes'** tab!")
         else:
             st.warning("Please enter at least one base keyword.")
@@ -685,7 +988,7 @@ with tab2:
         analyzer_base_keywords = st.text_area(
             "Base Keywords to Group By (one per line)",
             value=st.session_state.get("base_keywords_text", "sneakers\nsandals\nshoes\nshirts\ntops"),
-            height=180,
+            height=160,
             help="Keywords will be matched against these base terms (including plurals)."
         )
         
@@ -693,6 +996,12 @@ with tab2:
             "Show seasonal searches without category modifiers (e.g. 'heritage day' standalone)",
             value=True,
             help="When checked, separates seasonal events (like 'heritage day' or 'valentines day') into a standalone pure search row (without 'womens', 'mens', 'kids' modifiers) alongside overall campaign searches."
+        )
+        
+        use_peak_for_seasonal = st.checkbox(
+            "Use Peak Monthly Volume for Seasonal Keywords",
+            value=True,
+            help="Prioritizes the highest month's search volume (e.g. 110,000 in September for Heritage Day) instead of the diluted 12-month average (9,200). If your CSV includes monthly columns from Google Keyword Planner, the exact peak month is extracted automatically."
         )
         
     with col_upload:
@@ -732,18 +1041,22 @@ with tab2:
                         for uf in uploaded_files:
                             dfs.append(parse_keyword_data(uf))
                         df_raw = pd.concat(dfs, ignore_index=True)
-                        # Deduplicate across multiple files (keep highest volume if duplicate keyword exists)
-                        df_raw = df_raw.sort_values(by="Volume", ascending=False).drop_duplicates(subset=["Keyword"], keep="first")
+                        # Deduplicate across multiple files (keep highest Peak_Volume/Volume)
+                        sort_keys = ["Peak_Volume", "Volume"] if "Peak_Volume" in df_raw.columns else ["Volume"]
+                        df_raw = df_raw.sort_values(by=sort_keys, ascending=False).drop_duplicates(subset=["Keyword"], keep="first")
                     else:
                         df_raw = parse_keyword_data(pasted_text)
                         
                     base_list = [b.strip() for b in analyzer_base_keywords.split("\n") if b.strip()]
                     seasonal_in_tab2 = st.session_state.get("seasonal_event_name", "")
+                    seasonal_month_tab2 = st.session_state.get("seasonal_event_month", "")
                     summary_df = analyze_search_volumes(
                         df=df_raw, 
                         base_keywords=base_list,
                         seasonal_event_name=seasonal_in_tab2,
-                        separate_pure_seasonal=separate_pure_seasonal
+                        seasonal_event_month=seasonal_month_tab2,
+                        separate_pure_seasonal=separate_pure_seasonal,
+                        use_peak_for_seasonal=use_peak_for_seasonal
                     )
                     
                 file_count_msg = f" from {len(uploaded_files)} uploaded file(s)" if input_mode == "Upload CSV / TSV File" else ""
@@ -781,3 +1094,139 @@ with tab2:
             except Exception as e:
                 st.error(f"Error parsing data: {e}")
                 st.info("Ensure your data contains at least a column with 'Keyword' and a column with search volumes (e.g. 'Avg. monthly searches').")
+
+# ---------------- TAB 3: TUTORIAL & COPYWRITER GUIDE ----------------
+with tab3:
+    st.subheader("📖 User Guide & Copywriter Tutorial")
+    st.markdown(
+        """
+        Welcome to the **Keyword Research Cheat Sheet & Analyzer**! 
+        This guide is designed for copywriters, content creators, SEO specialists, and merchandisers 
+        to help you quickly find high-converting, natural keyword phrasing and seasonal peak traffic volumes.
+        """
+    )
+    
+    st.info(
+        """
+        💡 **Core Purpose:** Google Keyword Planner often groups variations (like *womens sneakers* vs *sneakers for women*) 
+        into the same search volume pool, and hides dramatic seasonal spikes behind a diluted 12-month average. 
+        This tool generates clean variations to query without conflation, and extracts the true peak monthly demand for campaigns.
+        """
+    )
+    
+    col_tut1, col_tut2 = st.columns(2)
+    
+    with col_tut1:
+        st.markdown(
+            """
+            ### 🚨 The 2 Problems with Google Keyword Planner
+            
+            #### 1. The Keyword "Lumping" (Conflation) Problem
+            * If you paste `sneakers for women` and `womens sneakers` into Google Keyword Planner at the same time, Google often considers them identical synonyms and shows the **exact same search volume** for both.
+            * You won't know which phrase real customers actually search for more!
+            * **How we fix it:** We generate **Prefix Variations** (e.g. `womens sneakers`) and **Suffix Variations** (e.g. `sneakers for women`) into separate copyable boxes so you query them separately in GKP and discover true search volume differences.
+            
+            #### 2. The 12-Month Average Trap for Seasonal Events
+            * Events like **Valentine's Day (February)** or **Heritage Day (September)** spike heavily in their target month (e.g., 110,000 searches in September, but almost 0 in April).
+            * Google's default "Avg. monthly searches" divides the annual total by 12, displaying only **~9,200 searches/month**.
+            * If you rely on the 12-month average, you drastically underestimate your campaign's potential!
+            * **How we fix it:** Our analyzer scans the full historical metrics export, detects the **Peak Month**, and evaluates keywords based on their highest month's traffic (e.g. **110,000 in September**).
+            """
+        )
+        
+    with col_tut2:
+        st.markdown(
+            """
+            ### 🚀 4-Step Quick Start Workflow
+            
+            1. **Step 1: Generate Keywords (Tab 1)**
+               * Enter your core products (e.g. `sneakers`, `dresses`, `sandals`).
+               * Select an audience category (**Women**, **Men**, **Kids**, or **General**).
+               * *(Optional)* Select a **Seasonal Campaign** (e.g. Valentine's Day, Heritage Day) with campaign modifiers (`specials`, `sale`, `gifts`).
+               * Toggle **Naked & Generic** if targeting gender-exclusive items (like `dresses` or `bras` where users rarely type "for women").
+               
+            2. **Step 2: Query Google Keyword Planner Separately**
+               * Go to **Google Keyword Planner** ➔ *Get search volume and forecasts*.
+               * Copy the **Prefix box** ➔ Paste into GKP ➔ Download CSV (Historical Metrics).
+               * Copy the **Suffix box** ➔ Paste into GKP ➔ Download CSV (Historical Metrics).
+               * Copy the **Pure Seasonal box** if planning a campaign landing page.
+               
+            3. **Step 3: Analyze & Compare in Tab 2**
+               * Upload both CSV exports (you can drag & drop multiple files at once!).
+               * The tool automatically deduplicates keywords and groups them by your base product.
+               * Click **Run Analysis**.
+               
+            4. **Step 4: Copy the Winning Phrasing into Your Content**
+               * Review the **🏆 Keyword Recommendation Table** to see the #1 Top Pick (with % lead over 2nd) and the Peak Month timing.
+            """
+        )
+        
+    st.divider()
+    
+    st.markdown("### ✍️ Copywriter Implementation Guide: Where to Place Keywords")
+    st.markdown(
+        """
+        Once you know the winning variation (e.g. `women's sneakers` vs `sneakers for ladies`), 
+        here is the exact on-page blueprint for copywriters and content editors:
+        """
+    )
+    
+    col_seo1, col_seo2 = st.columns(2)
+    with col_seo1:
+        st.markdown(
+            """
+            #### 🏷️ 1. Page Title Tag (`<title>`)
+            * **Rule:** Place your **#1 Top Variation** as close to the beginning as possible.
+            * **Formula:** `[Top Variation] | [Secondary or Commercial Intent] - [Brand]`
+            * **Example:** `Women's Sneakers | Buy Ladies Sneakers Online - BrandName`
+            
+            #### 📌 2. Main Heading (`<h1>`)
+            * **Rule:** Use the exact #1 Top Variation cleanly and prominently.
+            * **Example:** `<h1>Women's Sneakers</h1>`
+            
+            #### 🔗 3. URL Slug
+            * **Rule:** Short, clean, lowercase, hyphens only.
+            * **Example:** `myshop.co.za/shoes/womens-sneakers`
+            """
+        )
+        
+    with col_seo2:
+        st.markdown(
+            """
+            #### 📝 4. Intro Paragraph & Body Copy
+            * **Rule:** In the first 50–100 words, lead with the **#1 Top Variation**, then naturally weave in the **#2 Runner-Up** and high-intent commercial modifiers (`for sale`, `online in South Africa`, `shop specials`).
+            * **Example Copy:**
+              > *"Looking for comfortable **women's sneakers**? Explore our latest collection of **sneakers for ladies for sale online in South Africa**. From everyday casual trainers to running shoes, discover stylish footwear at everyday low prices."*
+              
+            #### 🖼️ 5. Image Alt Text & Subheadings (`<h2>`, `<h3>`)
+            * **Rule:** Use secondary variations and descriptive attributes for image alt text:
+            * **Example:** `<img src="..." alt="White canvas ladies sneakers on sale">`
+            """
+        )
+        
+    st.divider()
+    
+    st.markdown("### 📅 South African Retail Calendar & Peak Search Timing")
+    st.markdown("Refer to this cheat sheet to know when search demand spikes in South Africa and when to publish your content:")
+    
+    calendar_data = [
+        {"Campaign / Event": "Back to School", "Peak Month": "January / December", "When to Publish Content": "Mid-to-late December", "Primary Modifiers": "school shoes, uniforms, stationery, bags, school wear"},
+        {"Campaign / Event": "Valentine's Day", "Peak Month": "February", "When to Publish Content": "Mid-January", "Primary Modifiers": "gifts, specials, dresses, jewellery, for him, for her, underwear"},
+        {"Campaign / Event": "Easter", "Peak Month": "March / April", "When to Publish Content": "3-4 weeks before Easter", "Primary Modifiers": "specials, chocolate, family outfits, autumn sale, deals"},
+        {"Campaign / Event": "Family Day", "Peak Month": "April", "When to Publish Content": "Early April", "Primary Modifiers": "family outfits, specials, home, braai, weekend deals"},
+        {"Campaign / Event": "Mother's Day", "Peak Month": "May", "When to Publish Content": "Mid-April", "Primary Modifiers": "gifts for mom, gift ideas, specials, perfume, flowers, dresses"},
+        {"Campaign / Event": "Youth Day", "Peak Month": "June", "When to Publish Content": "Late May", "Primary Modifiers": "clothing specials, sneakers, youth fashion, winter shoes, deals"},
+        {"Campaign / Event": "Father's Day", "Peak Month": "June", "When to Publish Content": "Mid-May", "Primary Modifiers": "gifts for dad, gadgets, shoes, shirts, winter jackets, specials"},
+        {"Campaign / Event": "Women's Day", "Peak Month": "August", "When to Publish Content": "Mid-July", "Primary Modifiers": "specials, gifts, clothing, pamper, footwear, dresses, shoes"},
+        {"Campaign / Event": "Women's Month", "Peak Month": "August", "When to Publish Content": "Mid-July", "Primary Modifiers": "womens specials, month promotions, catalogue, ladies discounts"},
+        {"Campaign / Event": "Heritage Day", "Peak Month": "September", "When to Publish Content": "Mid-August", "Primary Modifiers": "traditional attire, heritage dresses, south africa, cultural outfits"},
+        {"Campaign / Event": "Braai Day", "Peak Month": "September", "When to Publish Content": "Mid-August", "Primary Modifiers": "braai specials, outdoor, braai day deals, south africa, grid, accessories"},
+        {"Campaign / Event": "Halloween", "Peak Month": "October", "When to Publish Content": "Early October", "Primary Modifiers": "costumes, accessories, party wear, kids outfits"},
+        {"Campaign / Event": "Black Friday", "Peak Month": "November", "When to Publish Content": "October / early November", "Primary Modifiers": "deals, specials, catalogue, discounts, online south africa, big sale"},
+        {"Campaign / Event": "Cyber Monday", "Peak Month": "November", "When to Publish Content": "Mid-November", "Primary Modifiers": "online specials, tech deals, online south africa, cyber sale"},
+        {"Campaign / Event": "Festive", "Peak Month": "December", "When to Publish Content": "Early November", "Primary Modifiers": "festive season, home decor, holiday outfits, gifts, specials"},
+        {"Campaign / Event": "Christmas", "Peak Month": "December", "When to Publish Content": "November", "Primary Modifiers": "xmas gifts, decorations, toys, party dresses, hampers"},
+        {"Campaign / Event": "Boxing Day", "Peak Month": "December", "When to Publish Content": "Mid-December", "Primary Modifiers": "clearance sale, end of year specials, discounted prices, south africa"},
+        {"Campaign / Event": "Payday Specials", "Peak Month": "Monthly (25th–31st)", "When to Publish Content": "Continuous / Evergreen", "Primary Modifiers": "payday specials, month end deals, catalogue, for sale, price"}
+    ]
+    st.dataframe(pd.DataFrame(calendar_data), use_container_width=True, hide_index=True)
