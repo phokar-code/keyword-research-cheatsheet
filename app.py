@@ -509,6 +509,39 @@ def build_keyword_pattern(phrase):
     pattern_str = r"\s+".join(word_patterns)
     return rf"\b{pattern_str}\b"
 
+def is_same_keyword(kw1, kw2):
+    """
+    Checks if kw1 and kw2 refer to the exact same base keyword,
+    accounting for case, whitespace, apostrophes, and common singular/plural stems
+    (e.g. 'women's day' == 'womens day', 'shelf' == 'shelves', 'clothes' == 'clothing').
+    """
+    if not kw1 or not kw2 or kw1 == "N/A" or kw2 == "N/A":
+        return False
+        
+    s1 = normalize_phrase(kw1).lower().replace("'", "").strip()
+    s2 = normalize_phrase(kw2).lower().replace("'", "").strip()
+    
+    if s1 == s2:
+        return True
+        
+    words1 = s1.split()
+    words2 = s2.split()
+    if len(words1) != len(words2):
+        return False
+        
+    for w1, w2 in zip(words1, words2):
+        if w1 == w2:
+            continue
+        pat1 = build_keyword_pattern(w1)
+        if re.fullmatch(pat1, w2):
+            continue
+        pat2 = build_keyword_pattern(w2)
+        if re.fullmatch(pat2, w1):
+            continue
+        return False
+        
+    return True
+
 def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_event_month="", separate_pure_seasonal=True, use_peak_for_seasonal=True):
     """
     Groups keyword volume data by base keywords and determines winners, runners-up,
@@ -628,9 +661,11 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         if matches.empty:
             results.append({
                 "Base Keyword": label,
+                "Base Keyword Volume": 0,
                 "Total Group Volume": 0,
                 "Top Variation": "N/A",
                 "Top Volume": 0,
+                "Top Matches Base?": "N/A",
                 "Second Highest": "N/A",
                 "Second Volume": 0,
                 "Third Highest": "N/A",
@@ -648,6 +683,18 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         
         total_vol = int(matches[ranking_col].sum())
         
+        # Base keyword volume lookup
+        base_norm = normalize_phrase(base_clean).lower().replace("'", "").strip()
+        exact_base_rows = matches[matches["Keyword"].apply(lambda k: normalize_phrase(k).lower().replace("'", "").strip() == base_norm)]
+        if not exact_base_rows.empty:
+            base_vol = int(exact_base_rows[ranking_col].max())
+        else:
+            stem_base_rows = matches[matches["Keyword"].apply(lambda k: is_same_keyword(k, base_clean))]
+            if not stem_base_rows.empty:
+                base_vol = int(stem_base_rows[ranking_col].max())
+            else:
+                base_vol = 0
+        
         # Build variable list: [Keyword, ranking_volume, avg_volume, peak_month]
         cols_to_extract = ["Keyword", ranking_col, "Volume"]
         if has_month_col:
@@ -661,6 +708,9 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         top1_var, top1_vol, top1_avg, top1_m = var_list[0] if len(var_list) > 0 else ("N/A", 0, 0, "")
         top2_var, top2_vol, top2_avg, top2_m = var_list[1] if len(var_list) > 1 else ("N/A", 0, 0, "")
         top3_var, top3_vol, top3_avg, top3_m = var_list[2] if len(var_list) > 2 else ("N/A", 0, 0, "")
+        
+        # Flag if top variation is the same as the base keyword
+        top_matches_base = "Yes" if (top1_var != "N/A" and is_same_keyword(top1_var, base_clean)) else ("No" if top1_var != "N/A" else "N/A")
         
         # Timing / Peak Month resolution
         if is_seasonal:
@@ -683,22 +733,30 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
                 rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,}) [Excludes category/gender modifiers]"
         elif is_seasonal and use_peak and top1_m and top1_vol > top1_avg:
             lead = ((top1_vol - top2_vol) / top2_vol * 100) if top2_vol > 0 else 100
-            rec = f"Top Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
+            if top_matches_base == "Yes":
+                rec = f"Base Keyword Leads: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
+            else:
+                rec = f"Top Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
         elif len(var_list) == 1:
             rec = f"Single match: '{top1_var}' ({top1_vol:,})"
         elif top1_vol == top2_vol and top1_vol > 0:
             rec = f"Tied at #1: '{top1_var}' & '{top2_var}' ({top1_vol:,}). Alternate: '{top3_var}' ({top3_vol:,})"
         elif top1_vol > 0:
             lead = ((top1_vol - top2_vol) / top2_vol * 100) if top2_vol > 0 else 100
-            rec = f"Top Pick: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd)"
+            if top_matches_base == "Yes":
+                rec = f"Base Keyword Leads: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd)"
+            else:
+                rec = f"Top Pick: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd)"
         else:
             rec = "All variations show 0 search volume"
             
         results.append({
             "Base Keyword": label,
+            "Base Keyword Volume": base_vol,
             "Total Group Volume": total_vol,
             "Top Variation": top1_var,
             "Top Volume": top1_vol,
+            "Top Matches Base?": top_matches_base,
             "Second Highest": top2_var,
             "Second Volume": top2_vol,
             "Third Highest": top3_var,
@@ -1178,6 +1236,7 @@ with tab2:
                 st.subheader("🏆 Keyword Recommendation Table")
                 st.dataframe(
                     summary_df.style.format({
+                        "Base Keyword Volume": "{:,}",
                         "Total Group Volume": "{:,}",
                         "Top Volume": "{:,}",
                         "Second Volume": "{:,}",
@@ -1268,7 +1327,11 @@ with tab3:
                * Click **Run Analysis**.
                
             4. **Step 4: Copy the Winning Phrasing into Your Content**
-               * Review the **🏆 Keyword Recommendation Table** to see the #1 Top Pick (with % lead over 2nd) and the Peak Month timing.
+               * Review the **🏆 Keyword Recommendation Table**:
+                 * **Base Keyword Volume:** Standalone volume for the naked product term itself.
+                 * **Total Group Volume:** Aggregate monthly search volume across all matching variations.
+                 * **Top Matches Base?:** Flags whether the base keyword itself is the #1 winner (`Yes`) or if a modifier/variation took the top spot (`No`).
+                 * **Top Variation & Second Highest:** Compare the top 2 variations with their exact search volumes to pick your primary and secondary on-page terms.
             """
         )
         
