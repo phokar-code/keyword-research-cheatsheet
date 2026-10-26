@@ -1,6 +1,7 @@
 import io
 import re
 import pandas as pd
+import numpy as np
 import streamlit as st
 
 # Define the modifier templates
@@ -573,6 +574,10 @@ def parse_keyword_data(raw_text_or_file):
     except Exception:
         df = pd.read_csv(io.StringIO(clean_csv_text), sep="\t")
         
+    # Clean up empty or unnamed columns
+    df = df.dropna(how="all", axis=1)
+    df = df.loc[:, ~df.columns.astype(str).str.contains(r"^Unnamed:\s*\d+$", regex=True)]
+    
     # Standardize column names
     col_map = {}
     for col in df.columns:
@@ -602,11 +607,8 @@ def parse_keyword_data(raw_text_or_file):
     df["Keyword"] = df["Keyword"].astype(str).str.strip()
     
     # Detect historical monthly search columns (e.g. 'Searches: Sep 2024', 'Jan 2024', '2024-09')
-    month_pattern = re.compile(
-        r'(?:searches:\s*)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember))\b.*\d{2,4}|\b\d{4}-\d{2}\b',
-        re.I
-    )
-    month_cols = [c for c in df.columns if c not in ["Keyword", "Volume"] and month_pattern.search(str(c))]
+    month_cols = [c for c in df.columns if c not in ["Keyword", "Volume"] and MONTH_REGEX.search(str(c))]
+    month_cols = sort_month_columns(month_cols)
     
     if month_cols:
         for mc in month_cols:
@@ -625,7 +627,7 @@ def parse_keyword_data(raw_text_or_file):
                 return row["Volume"], ""
             best_col = vals.idxmax()
             best_val = int(vals[best_col])
-            # Clean month name, e.g. 'Searches: Sep 2024' -> 'Sep 2024'
+            # Clean month name, e.g. 'Searches: Dec 2025' -> 'Dec 2025'
             clean_m = re.sub(r'(?i)^searches:\s*', '', str(best_col)).strip()
             return best_val, clean_m
             
@@ -637,6 +639,119 @@ def parse_keyword_data(raw_text_or_file):
         df["Peak_Month"] = ""
         
     return df
+
+MONTH_REGEX = re.compile(
+    r'(?:searches:\s*)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b.*\d{2,4}|\b\d{4}-\d{2}\b',
+    re.I
+)
+
+def sort_month_columns(cols):
+    """Sorts historical monthly search columns chronologically."""
+    def parse_col_date(c):
+        clean = re.sub(r'(?i)^searches:\s*', '', str(c)).strip()
+        for fmt in ['%b %Y', '%B %Y', '%Y-%m', '%m/%Y', '%Y/%m']:
+            try:
+                return pd.to_datetime(clean, format=fmt)
+            except Exception:
+                pass
+        try:
+            return pd.to_datetime(clean)
+        except Exception:
+            return pd.Timestamp.min
+    return sorted(cols, key=parse_col_date)
+
+def detect_trend_timeline(monthly_series):
+    """
+    Detects when a seasonal trend ramps up (Start), hits peak volume (Peak),
+    and drops back to baseline (End).
+    Provides actionable preparation window for content publishing (e.g. 4-6 weeks prior to ramp-up).
+    """
+    if not monthly_series or len(monthly_series) < 6:
+        return {
+            "status": "No History",
+            "timeline": "Evergreen / N/A",
+            "start": "N/A",
+            "peak": "N/A",
+            "end": "N/A",
+            "prep_advice": "Publish anytime (Evergreen)"
+        }
+        
+    labels = [re.sub(r'(?i)^searches:\s*', '', str(m[0])).strip() for m in monthly_series]
+    short_labels = [l.split()[0] if ' ' in l else l for l in labels]
+    vols = np.array([m[1] for m in monthly_series], dtype=float)
+    
+    max_idx = int(np.argmax(vols))
+    peak_vol = vols[max_idx]
+    
+    if peak_vol == 0:
+        return {
+            "status": "Zero Volume",
+            "timeline": "No Search Volume",
+            "start": "N/A",
+            "peak": "N/A",
+            "end": "N/A",
+            "prep_advice": "N/A"
+        }
+        
+    sorted_vols = np.sort(vols)
+    baseline = float(np.median(sorted_vols[:max(3, len(vols)//2)]))
+    
+    # Check if keyword demand is steady / evergreen (peak is not substantially higher than baseline)
+    if baseline > 0 and (peak_vol / baseline < 1.4 or (peak_vol - baseline) < 100):
+        return {
+            "status": "Evergreen",
+            "timeline": "Evergreen (Steady demand all year)",
+            "start": "Year-Round",
+            "peak": labels[max_idx],
+            "end": "Year-Round",
+            "prep_advice": "Maintain ongoing evergreen optimization"
+        }
+        
+    # Elevated threshold: 50% above baseline or 15% of (peak - baseline)
+    threshold = max(baseline * 1.5, baseline + 0.15 * (peak_vol - baseline))
+    
+    n = len(vols)
+    # Search backwards from peak up to 4 months for ramp-up start
+    start_idx = max_idx
+    for i in range(1, 5):
+        idx = (max_idx - i) % n
+        if vols[idx] >= threshold:
+            start_idx = idx
+        else:
+            break
+            
+    # Search forwards from peak up to 3 months for cool-down end
+    end_idx = max_idx
+    for i in range(1, 4):
+        idx = (max_idx + i) % n
+        if vols[idx] >= threshold:
+            end_idx = idx
+        else:
+            break
+            
+    start_l = short_labels[start_idx]
+    peak_l = short_labels[max_idx]
+    end_l = short_labels[end_idx]
+    
+    if start_idx == end_idx:
+        timeline = f"Spikes in {peak_l}"
+    elif (end_idx - start_idx) % n == 1:
+        timeline = f"{start_l} ➔ {end_l} (Peak)" if end_idx == max_idx else f"{start_l} (Peak) ➔ {end_l}"
+    else:
+        timeline = f"{start_l} ➔ {peak_l} (Peak) ➔ {end_l}"
+        
+    prep_idx = (start_idx - 1) % n
+    prep_l = short_labels[prep_idx]
+    prep_advice = f"Publish / optimize by {prep_l} (4-6 wks before {start_l} ramp-up)"
+    
+    return {
+        "status": "Seasonal",
+        "timeline": timeline,
+        "start": labels[start_idx],
+        "peak": labels[max_idx],
+        "end": labels[end_idx],
+        "prep_advice": prep_advice
+    }
 
 CATEGORY_MODIFIERS = [
     "womens", "ladies", "women", "woman",
@@ -780,6 +895,8 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         
     has_peak_col = "Peak_Volume" in df.columns and (df["Peak_Volume"] > 0).any()
     has_month_col = "Peak_Month" in df.columns
+    month_cols = [c for c in df.columns if c not in ["Keyword", "Volume", "Peak_Volume", "Peak_Month"] and MONTH_REGEX.search(str(c))]
+    month_cols = sort_month_columns(month_cols)
     
     processed_bases = []
     for b in base_keywords:
@@ -874,6 +991,13 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
                 "Second Volume": 0,
                 "Third Highest": "N/A",
                 "Third Volume": 0,
+                "Fourth Highest": "N/A",
+                "Fourth Volume": 0,
+                "Fifth Highest": "N/A",
+                "Fifth Volume": 0,
+                "Sixth Highest": "N/A",
+                "Sixth Volume": 0,
+                "Trend Timeline (Start ➔ Peak ➔ End)": "N/A",
                 "Peak Month / Timing": expected_month if is_seasonal else "Evergreen (Year-Round)",
                 "Recommendation / Insight": "No matching keywords found in data"
             })
@@ -912,10 +1036,24 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         top1_var, top1_vol, top1_avg, top1_m = var_list[0] if len(var_list) > 0 else ("N/A", 0, 0, "")
         top2_var, top2_vol, top2_avg, top2_m = var_list[1] if len(var_list) > 1 else ("N/A", 0, 0, "")
         top3_var, top3_vol, top3_avg, top3_m = var_list[2] if len(var_list) > 2 else ("N/A", 0, 0, "")
+        top4_var, top4_vol, top4_avg, top4_m = var_list[3] if len(var_list) > 3 else ("N/A", 0, 0, "")
+        top5_var, top5_vol, top5_avg, top5_m = var_list[4] if len(var_list) > 4 else ("N/A", 0, 0, "")
+        top6_var, top6_vol, top6_avg, top6_m = var_list[5] if len(var_list) > 5 else ("N/A", 0, 0, "")
         
         # Flag if top variation is the same as the base keyword
         top_matches_base = "Yes" if (top1_var != "N/A" and is_same_keyword(top1_var, base_clean)) else ("No" if top1_var != "N/A" else "N/A")
         
+        # Trend detection across monthly historical search columns
+        if month_cols:
+            top_row = matches.iloc[0]
+            top_series = [(mc, int(top_row[mc])) for mc in month_cols]
+            trend_info = detect_trend_timeline(top_series)
+            trend_timeline_str = trend_info["timeline"]
+            prep_advice = trend_info["prep_advice"]
+        else:
+            trend_timeline_str = "Evergreen / N/A" if not is_seasonal else "Seasonal Campaign"
+            prep_advice = ""
+            
         # Timing / Peak Month resolution
         if is_seasonal:
             if top1_m:
@@ -927,30 +1065,28 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
         else:
             peak_month_str = "Evergreen (Year-Round)"
             
-        # Recommendation logic
+        # Recommendation logic with Trend Timeline & Prep Advice
+        prep_str = f" | {prep_advice}" if prep_advice else ""
         if pure_only:
             if use_peak and top1_m and top1_vol > top1_avg:
-                rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg). Excludes category modifiers."
+                rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg). Trend: {trend_timeline_str}{prep_str}. Excludes category modifiers."
             elif expected_month:
                 rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,} searches). Peak month: {expected_month}. Excludes category modifiers."
             else:
                 rec = f"Pure Seasonal Pick: '{top1_var}' ({top1_vol:,}) [Excludes category/gender modifiers]"
         elif is_seasonal and use_peak and top1_m and top1_vol > top1_avg:
             lead = ((top1_vol - top2_vol) / top2_vol * 100) if top2_vol > 0 else 100
-            if top_matches_base == "Yes":
-                rec = f"Base Keyword Leads: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
-            else:
-                rec = f"Top Seasonal Pick: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd)"
+            base_prefix = "Base Keyword Leads" if top_matches_base == "Yes" else "Top Seasonal Pick"
+            rec = f"{base_prefix}: '{top1_var}' ({top1_vol:,} peak searches in {top1_m} vs {top1_avg:,} 12-mo avg, +{lead:.0f}% over 2nd). Trend: {trend_timeline_str}{prep_str}."
         elif len(var_list) == 1:
             rec = f"Single match: '{top1_var}' ({top1_vol:,})"
         elif top1_vol == top2_vol and top1_vol > 0:
             rec = f"Tied at #1: '{top1_var}' & '{top2_var}' ({top1_vol:,}). Alternate: '{top3_var}' ({top3_vol:,})"
         elif top1_vol > 0:
             lead = ((top1_vol - top2_vol) / top2_vol * 100) if top2_vol > 0 else 100
-            if top_matches_base == "Yes":
-                rec = f"Base Keyword Leads: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd)"
-            else:
-                rec = f"Top Pick: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd)"
+            base_prefix = "Base Keyword Leads" if top_matches_base == "Yes" else "Top Pick"
+            demand_note = f" (Demand: {trend_timeline_str})" if trend_timeline_str and trend_timeline_str != "Evergreen / N/A" else ""
+            rec = f"{base_prefix}: '{top1_var}' ({top1_vol:,}, +{lead:.0f}% over 2nd){demand_note}"
         else:
             rec = "All variations show 0 search volume"
             
@@ -965,6 +1101,13 @@ def analyze_search_volumes(df, base_keywords, seasonal_event_name="", seasonal_e
             "Second Volume": top2_vol,
             "Third Highest": top3_var,
             "Third Volume": top3_vol,
+            "Fourth Highest": top4_var,
+            "Fourth Volume": top4_vol,
+            "Fifth Highest": top5_var,
+            "Fifth Volume": top5_vol,
+            "Sixth Highest": top6_var,
+            "Sixth Volume": top6_vol,
+            "Trend Timeline (Start ➔ Peak ➔ End)": trend_timeline_str,
             "Peak Month / Timing": peak_month_str,
             "Recommendation / Insight": rec
         })
@@ -1507,7 +1650,10 @@ with tab2:
                         "Total Group Volume": "{:,}",
                         "Top Volume": "{:,}",
                         "Second Volume": "{:,}",
-                        "Third Volume": "{:,}"
+                        "Third Volume": "{:,}",
+                        "Fourth Volume": "{:,}",
+                        "Fifth Volume": "{:,}",
+                        "Sixth Volume": "{:,}"
                     }),
                     use_container_width=True,
                     hide_index=True
@@ -1632,10 +1778,57 @@ with tab3:
                  * **Base Keyword Volume:** Standalone volume for the naked product term itself.
                  * **Total Group Volume:** Aggregate monthly search volume across all matching variations.
                  * **Top Matches Base?:** Flags whether the base keyword itself is the #1 winner (`Yes`) or if a modifier/variation took the top spot (`No`).
-                 * **Top Variation & Second Highest:** Compare the top 2 variations with their exact search volumes to pick your primary and secondary on-page terms.
+                 * **Top 6 Keyword Variations:** Displays the #1 Top Variation along with the 2nd, 3rd, 4th, 5th, and 6th highest volume runner-ups for a complete on-page content hierarchy.
+                 * **Trend Timeline (Start ➔ Peak ➔ End):** Reveals the exact months when search interest starts ramping up, when it peaks, and when it cools down.
+                 * **Preparation Advice:** Actionable guidance on when to publish or optimize landing pages (4–6 weeks prior to trend ramp-up).
             """
         )
         
+    st.divider()
+    
+    st.markdown("### 📈 Trend Timelines & The 4–6 Week SEO Preparation Rule")
+    st.markdown(
+        """
+        Seasonal search demand does not happen overnight. By the time an event month arrives (e.g. December for Christmas), 
+        millions of South African shoppers have already been researching gifts, outfits, and specials for weeks.
+        """
+    )
+    
+    col_trend1, col_trend2 = st.columns(2)
+    with col_trend1:
+        st.markdown(
+            """
+            #### 🔍 Understanding the Trend Timeline: `Start ➔ Peak ➔ End`
+            * **Start Month (Ramp-Up):** The month search interest rises significantly above baseline (e.g., searches for Christmas begin surging in **October/November**).
+            * **Peak Month (Maximum Demand):** The single calendar month with the absolute highest search volume (e.g., **December** with 135,000+ searches).
+            * **End Month (Cool-Down):** The month search demand recedes back to baseline levels (e.g., **January**).
+            * **Evergreen Detection:** Items that maintain steady demand year-round (e.g. `school shoes`, `curtains`) are automatically classified as `Evergreen (Year-Round)` so you don't confuse them with seasonal spikes.
+            """
+        )
+    with col_trend2:
+        st.markdown(
+            """
+            #### ⏰ The 4–6 Week Indexation Rule for Copywriters & SEOs
+            * **Google Crawling & Indexing Lag:** Search engines take 2 to 6 weeks to crawl new landing pages, index content updates, and re-calculate topical authority and rankings.
+            * **The Golden Rule:** You must have your landing page live, indexed, and fully optimized **4 to 6 weeks before the Start Month (Ramp-Up)**, NOT the Peak Month!
+            * **Example (Christmas Campaign):**
+              * *Peak Month:* December (135,000 searches)
+              * *Ramp-up begins:* November / October (40,500 searches)
+              * *Copywriter Action:* Optimize and publish landing page by **September / early October** so PEP ranks on Page 1 the moment early shoppers start searching!
+            """
+        )
+
+    st.markdown("#### 🎯 How to Deploy the Top 6 Keyword Variations in Your Content")
+    st.markdown(
+        """
+        Instead of guessing where to repeat keywords, use the 6 variations systematically across your page:
+        * 🥇 **#1 Top Variation:** Primary keyword for `<title>` tag, main `<h1>`, and URL slug.
+        * 🥈 **#2 Second Highest:** Secondary keyword for `<h2>` main subheading, meta description, and first 50–100 words of intro copy.
+        * 🥉 **#3 Third Highest:** Supporting theme for secondary `<h2>`, first category banner, or product badge.
+        * 🏅 **#4, #5 & #6 Runner-Ups:** Long-tail variations for `<h3>` subheadings, FAQ schema accordion questions, image `alt` attributes, product facet/filter tags, and internal link anchor text.
+        """
+    )
+    
     st.divider()
     
     st.markdown("### ✍️ Copywriter Implementation Guide: Where to Place Keywords")
