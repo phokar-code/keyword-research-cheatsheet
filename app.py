@@ -335,6 +335,210 @@ def generate_brand_combinations(base_keywords, brand="pep", category="General", 
                 
     return list(dict.fromkeys(results))
 
+# ---------------- Affordability & Budget Modifiers (PEP Value Focus) ----------------
+AFFORDABILITY_PRESETS = [
+    "affordable", "budget", "value", "cheap", "low price", "best price"
+]
+
+def generate_affordability_combinations(base_keywords, selected_mods=None, category="General", brand="pep", include_brand=False):
+    """
+    Generates high-intent affordability, budget, and price-seeking variations:
+    - Core Affordability (e.g. 'cheap curtains', 'affordable curtains', 'budget curtains', 'value curtains', 'low price curtains', 'best price curtains')
+    - Affordability + Commercial & Location (e.g. 'cheap curtains for sale', 'affordable curtains online', 'cheap curtains in south africa')
+    - Audience Affordability Variations (e.g. 'cheap ladies sneakers', 'affordable dresses for women', 'cheap kids clothes')
+    - Brand Affordability (e.g. 'pep affordable curtains', 'cheap curtains at pep', 'pep cheap clothes', 'pep budget curtains')
+    """
+    if not selected_mods:
+        selected_mods = AFFORDABILITY_PRESETS
+        
+    core_vars = []
+    combo_vars = []
+    aud_vars = []
+    brand_vars = []
+    
+    b = brand.lower().strip() if (include_brand and brand) else ""
+    
+    for kw in base_keywords:
+        kw_clean = kw.lower().strip()
+        if not kw_clean:
+            continue
+            
+        for mod in selected_mods:
+            m = mod.lower().strip()
+            if not m:
+                continue
+                
+            # 1. Core Affordability
+            core_vars.append(f"{m} {kw_clean}")
+            if m == "budget":
+                core_vars.append(f"{kw_clean} at budget prices")
+            elif m == "value":
+                core_vars.append(f"{kw_clean} best value")
+            elif m == "low price":
+                core_vars.append(f"{kw_clean} at low prices")
+            elif m == "best price":
+                core_vars.append(f"{kw_clean} best prices")
+                    
+            # 2. Affordability + Commercial & Location Combinations
+            combo_vars.append(f"{m} {kw_clean} for sale")
+            combo_vars.append(f"{m} {kw_clean} online")
+            combo_vars.append(f"{m} {kw_clean} in south africa")
+            combo_vars.append(f"{m} {kw_clean} for sale online")
+            combo_vars.append(f"{m} {kw_clean} for sale in south africa")
+            combo_vars.append(f"{m} {kw_clean} for sale online in south africa")
+            combo_vars.append(f"buy {m} {kw_clean}")
+            combo_vars.append(f"shop {m} {kw_clean}")
+            combo_vars.append(f"shop {m} {kw_clean} south africa")
+            combo_vars.append(f"buy {m} {kw_clean} south africa")
+            combo_vars.append(f"{m} {kw_clean} prices")
+            
+            # 3. Audience Affordability Variations
+            if category == "Women":
+                aud_vars.append(f"{m} {kw_clean} for women")
+                aud_vars.append(f"{m} {kw_clean} for ladies")
+                aud_vars.append(f"{m} ladies {kw_clean}")
+                aud_vars.append(f"{m} womens {kw_clean}")
+                aud_vars.append(f"{m} ladies {kw_clean} for sale")
+                aud_vars.append(f"{m} {kw_clean} for ladies in south africa")
+            elif category == "Men":
+                aud_vars.append(f"{m} {kw_clean} for men")
+                aud_vars.append(f"{m} {kw_clean} for gents")
+                aud_vars.append(f"{m} mens {kw_clean}")
+                aud_vars.append(f"{m} gents {kw_clean}")
+                aud_vars.append(f"{m} mens {kw_clean} for sale")
+            elif category == "Kids":
+                aud_vars.append(f"{m} {kw_clean} for kids")
+                aud_vars.append(f"{m} {kw_clean} for boys")
+                aud_vars.append(f"{m} {kw_clean} for girls")
+                aud_vars.append(f"{m} kids {kw_clean}")
+                aud_vars.append(f"{m} baby {kw_clean}")
+                aud_vars.append(f"{m} kids {kw_clean} for sale")
+                
+            # 4. Brand Affordability
+            if b:
+                brand_vars.append(f"{b} {m} {kw_clean}")
+                brand_vars.append(f"{m} {kw_clean} at {b}")
+                brand_vars.append(f"{m} {kw_clean} from {b}")
+                brand_vars.append(f"{b} {m} {kw_clean} for sale")
+                brand_vars.append(f"{b} {m} {kw_clean} specials")
+                
+    core_vars = list(dict.fromkeys(core_vars))
+    combo_vars = list(dict.fromkeys(combo_vars))
+    aud_vars = list(dict.fromkeys(aud_vars))
+    brand_vars = list(dict.fromkeys(brand_vars))
+    
+    return core_vars, combo_vars, aud_vars, brand_vars
+
+def analyze_affordability_breakdown(df, base_keywords):
+    """
+    Analyzes search volume for affordability and value modifiers across base keywords.
+    Compares consumer preference for terms like 'cheap' vs 'affordable' vs 'budget' vs 'low price' / 'best price',
+    helping copywriters reconcile consumer search volume with brand positioning.
+    """
+    affordability_terms = {
+        "cheap": r"\b(?:cheap|cheapest)\b",
+        "affordable": r"\b(?:affordable|affordability)\b",
+        "budget": r"\b(?:budget|budget-friendly)\b",
+        "value": r"\b(?:value|best value)\b",
+        "low price": r"\b(?:low price|lowest price|lower price|low prices|lowest prices)\b",
+        "best price": r"\b(?:best price|best prices)\b"
+    }
+    
+    all_aff_pattern = r"\b(?:cheap|cheapest|affordable|affordability|budget|budget-friendly|value|best value|low price|lowest price|lower price|low prices|lowest prices|best price|best prices)\b"
+    
+    ranking_col = "Peak_Volume" if "Peak_Volume" in df.columns and (df["Peak_Volume"] > 0).any() else "Volume"
+    
+    records = []
+    
+    for b in base_keywords:
+        b_clean = b.strip()
+        if not b_clean:
+            continue
+            
+        b_pattern = rf"\b{re.escape(b_clean.rstrip('s'))}(?:s|es)?\b"
+        base_df = df[df["Keyword"].str.lower().str.contains(b_pattern, regex=True)].copy()
+        
+        if base_df.empty:
+            continue
+            
+        total_base_vol = int(base_df[ranking_col].sum())
+        aff_df = base_df[base_df["Keyword"].str.lower().str.contains(all_aff_pattern, regex=True)].copy()
+        
+        if aff_df.empty:
+            records.append({
+                "Base Keyword": b_clean.title(),
+                "Total Base Vol": total_base_vol,
+                "Affordability Vol": 0,
+                "% Value Intent": "0.0%",
+                "Top Value Variation": "None Found",
+                "Top Value Vol": 0,
+                "Primary Phrasing": "N/A",
+                "Phrasing Preference Breakdown": "No affordability searches detected",
+                "Actionable Copywriter Insight": "Low explicit price-seeking search volume. Focus primary copy on product style, fit, and general commercial intent."
+            })
+            continue
+            
+        aff_vol = int(aff_df[ranking_col].sum())
+        pct_value = (aff_vol / total_base_vol * 100) if total_base_vol > 0 else 0
+        
+        # Sort variations
+        aff_df = aff_df.sort_values(by=ranking_col, ascending=False).drop_duplicates(subset=["Keyword"])
+        top_row = aff_df.iloc[0]
+        top_var = top_row["Keyword"]
+        top_var_vol = int(top_row[ranking_col])
+        
+        # Calculate term breakdown
+        term_volumes = {}
+        for term_label, term_regex in affordability_terms.items():
+            t_matches = aff_df[aff_df["Keyword"].str.lower().str.contains(term_regex, regex=True)]
+            t_vol = int(t_matches[ranking_col].sum())
+            if t_vol > 0:
+                term_volumes[term_label] = t_vol
+                
+        sorted_terms = sorted(term_volumes.items(), key=lambda x: x[1], reverse=True)
+        primary_term = sorted_terms[0][0] if sorted_terms else "N/A"
+        
+        breakdown_parts = []
+        for term_name, t_vol in sorted_terms:
+            t_pct = (t_vol / aff_vol * 100) if aff_vol > 0 else 0
+            breakdown_parts.append(f"{term_name}: {t_vol:,} ({t_pct:.0f}%)")
+        breakdown_str = " | ".join(breakdown_parts)
+        
+        # Generate actionable copywriter advice
+        if primary_term in ["cheap", "cheapest"]:
+            cheap_vol = term_volumes.get("cheap", 0)
+            afford_vol = term_volumes.get("affordable", 0) + term_volumes.get("budget", 0)
+            ratio = (cheap_vol / afford_vol) if afford_vol > 0 else 5.0
+            insight = (
+                f"Shoppers search '{primary_term}' {ratio:.1f}x more than 'affordable/budget'. "
+                f"Recommendation: Use '{top_var}' in Title Tag, URL & Alt text for rankings, "
+                f"and use 'affordable' or 'best prices' in H1 & body copy for brand tone."
+            )
+        elif primary_term in ["affordable", "budget"]:
+            insight = (
+                f"Shoppers explicitly prefer '{primary_term}' phrasing! "
+                f"Safe to feature '{top_var}' directly in H1, Title Tag, and lead paragraphs."
+            )
+        else:
+            insight = (
+                f"Strong demand for '{primary_term}'. "
+                f"Feature '{top_var}' in promo banners, meta descriptions, and product category headers."
+            )
+            
+        records.append({
+            "Base Keyword": b_clean.title(),
+            "Total Base Vol": total_base_vol,
+            "Affordability Vol": aff_vol,
+            "% Value Intent": f"{pct_value:.1f}%",
+            "Top Value Variation": top_var,
+            "Top Value Vol": top_var_vol,
+            "Primary Phrasing": primary_term.title(),
+            "Phrasing Preference Breakdown": breakdown_str,
+            "Actionable Copywriter Insight": insight
+        })
+        
+    return pd.DataFrame(records)
+
 def parse_keyword_data(raw_text_or_file):
     """
     Parse CSV, TSV, or raw text pasted from Google Keyword Planner or Excel.
@@ -851,6 +1055,21 @@ with tab1:
                 value="pep", 
                 help="Default is 'pep'. Change this if you need variations for another brand."
             )
+            
+        include_affordability = st.checkbox(
+            "💰 Include Affordability & Budget Modifiers (PEP Value Picks)",
+            value=True,
+            help="Generates high-volume value and budget phrasing like 'cheap', 'affordable', 'budget', 'value', 'low price', 'best price'."
+        )
+        
+        selected_affordability_mods = []
+        if include_affordability:
+            selected_affordability_mods = st.multiselect(
+                "Affordability Modifiers",
+                options=AFFORDABILITY_PRESETS,
+                default=AFFORDABILITY_PRESETS,
+                help="Modifiers representing PEP's core value proposition and consumer price-seeking search behavior (e.g. cheap, affordable, budget, value, low price, best price)."
+            )
         
         generate_btn = st.button("🚀 Generate Keywords", type="primary", use_container_width=True)
         
@@ -1010,6 +1229,17 @@ with tab1:
                     category=template_choice,
                     active_events=active_events_for_brand
                 )
+                
+            # 8. Affordability & Budget Generation (if selected)
+            aff_core, aff_combo, aff_aud, aff_brand = [], [], [], []
+            if include_affordability and selected_affordability_mods:
+                aff_core, aff_combo, aff_aud, aff_brand = generate_affordability_combinations(
+                    base_keywords=base_keywords,
+                    selected_mods=selected_affordability_mods,
+                    category=template_choice,
+                    brand=brand_name if include_brand else "",
+                    include_brand=include_brand
+                )
                         
             st.divider()
             
@@ -1049,6 +1279,43 @@ with tab1:
                     all_gen = gen_prefix_results + gen_suffix_results
                     st.caption(f"*{len(all_gen)} total keywords combined*")
                     st.code('\n'.join(all_gen), language=None)
+                    
+            # Display Affordability & Budget Section if active
+            if aff_core or aff_combo or aff_aud or aff_brand:
+                st.divider()
+                st.markdown("### 💰 Affordability & Budget Variations (PEP Value Picks)")
+                st.caption("Captures both consumer search phrasing (e.g. *cheap*) and brand-led value phrasing (e.g. *affordable*, *budget*, *best price*).")
+                
+                col_ac, col_ak = st.columns(2)
+                with col_ac:
+                    st.subheader("Core Affordability Variations")
+                    st.caption(f"*{len(aff_core)} keywords — e.g. '{aff_core[0] if aff_core else ''}', '{aff_core[1] if len(aff_core)>1 else ''}'*")
+                    st.code('\n'.join(aff_core), language=None)
+                    
+                with col_ak:
+                    st.subheader("Affordability + Shopping & Location")
+                    st.caption(f"*{len(aff_combo)} keywords — e.g. '{aff_combo[0] if aff_combo else ''}', '{aff_combo[1] if len(aff_combo)>1 else ''}'*")
+                    st.code('\n'.join(aff_combo), language=None)
+                    
+                if aff_aud or aff_brand:
+                    col_aa, col_ab = st.columns(2)
+                    if aff_aud:
+                        with col_aa:
+                            st.subheader(f"Affordability + {template_choice} Variations")
+                            st.caption(f"*{len(aff_aud)} keywords — e.g. '{aff_aud[0]}'*")
+                            st.code('\n'.join(aff_aud), language=None)
+                    if aff_brand:
+                        target_brand_col = col_ab if aff_aud else col_aa
+                        with target_brand_col:
+                            st.subheader(f"Brand ({brand_name.upper()}) + Affordability")
+                            st.caption(f"*{len(aff_brand)} keywords — e.g. '{aff_brand[0]}'*")
+                            st.code('\n'.join(aff_brand), language=None)
+                            
+                all_aff = aff_core + aff_combo + aff_aud + aff_brand
+                all_aff_dedup = list(dict.fromkeys(all_aff))
+                with st.expander("📦 View All Affordability Variations Together (Merged in One Box)"):
+                    st.caption(f"*{len(all_aff_dedup)} total affordability keywords combined*")
+                    st.code('\n'.join(all_aff_dedup), language=None)
                 
             # Display Seasonal & Campaign Section if active
             if active_event_name and (pure_seasonal or seasonal_core or seasonal_camp or seasonal_gen or seasonal_aud):
@@ -1261,6 +1528,40 @@ with tab2:
                     mime="text/csv"
                 )
                 
+                # Affordability & Budget Insights (PEP Value Analysis)
+                st.divider()
+                st.subheader("💰 Affordability & Budget Insights (PEP Value Analysis)")
+                st.caption("Compares consumer search demand for 'cheap' vs 'affordable', 'budget', 'value', and 'best price' to guide your on-page copy strategy.")
+                
+                aff_df = analyze_affordability_breakdown(df=df_raw, base_keywords=base_list)
+                if not aff_df.empty:
+                    st.dataframe(
+                        aff_df.style.format({
+                            "Total Base Vol": "{:,}",
+                            "Affordability Vol": "{:,}",
+                            "Top Value Vol": "{:,}"
+                        }),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    col_aff_copy, col_aff_dl = st.columns(2)
+                    with col_aff_copy:
+                        aff_tsv = aff_df.to_csv(sep="\t", index=False)
+                        st.caption("📋 Copy Affordability Breakdown (Ready for Excel / Google Sheets):")
+                        st.code(aff_tsv, language=None)
+                    with col_aff_dl:
+                        aff_csv_bytes = aff_df.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            label="📥 Download Affordability Analysis as CSV",
+                            data=aff_csv_bytes,
+                            file_name="affordability_value_analysis.csv",
+                            mime="text/csv",
+                            key="download_affordability_csv"
+                        )
+                else:
+                    st.info("No affordability or budget modifiers detected in the uploaded dataset.")
+                
             except Exception as e:
                 st.error(f"Error parsing data: {e}")
                 st.info("Ensure your data contains at least a column with 'Keyword' and a column with search volumes (e.g. 'Avg. monthly searches').")
@@ -1378,6 +1679,48 @@ with tab3:
             """
         )
         
+    st.divider()
+    
+    st.markdown("### 💰 The Affordability Dilemma: 'Cheap' vs 'Affordable' in Retail SEO")
+    st.markdown(
+        """
+        PEP's brand promise centers on providing dignity, everyday value, and the best prices for South African families.
+        However, consumer search data in South African retail reveals a critical search behaviour pattern:
+        """
+    )
+    
+    col_aff_guide1, col_aff_guide2 = st.columns(2)
+    with col_aff_guide1:
+        st.markdown(
+            """
+            #### 🔍 1. The Reality of Consumer Search Behavior
+            * **Shoppers search with "cheap":** In South Africa, consumers type **`cheap`** 3x to 10x more frequently than **`affordable`** or **`budget`** (e.g. `cheap curtains`, `cheap sneakers for ladies`, `cheap clothes for sale`).
+            * **Search intent:** The query `cheap` simply means *"I want the lowest cash outlay for this product"*.
+            * **The Brand Risk:** If a brand never uses `cheap`, it completely misses out on the largest volume of high-intent search traffic. But if used carelessly, it can degrade product quality perception.
+            """
+        )
+        
+    with col_aff_guide2:
+        st.markdown(
+            """
+            #### 🌉 2. The Copywriter "Bridge Strategy"
+            * **Rule 1 (Title Tag & URL Slug):** Use `cheap` in the `<title>` and URL to capture high-volume search traffic (e.g. `<title>Cheap Women's Sneakers & Affordable Shoes | PEP</title>` / `/womens-shoes/cheap-sneakers`).
+            * **Rule 2 (H1 & Promos):** Keep main page headings brand-aligned using `Affordable`, `Budget-Friendly`, or `Best Price` (e.g. `<h1>Affordable Women's Sneakers</h1>`).
+            * **Rule 3 (Body Copy Bridge):** Open your intro copy by bridging both terms naturally:
+              > *"Looking for **cheap ladies sneakers** without compromising on comfort or durability? Explore PEP's range of **affordable footwear** with the **best prices** on everyday trainers."*
+            """
+        )
+        
+    st.markdown("#### 📊 Value Modifiers Reference Guide")
+    aff_guide_data = [
+        {"Modifier": "cheap / cheapest", "Search Volume": "Highest (Dominant in SA)", "Search Intent": "Immediate cash savings, bargain seeking", "Where to Place": "Title tag, URL slug, image alt text, meta description"},
+        {"Modifier": "affordable", "Search Volume": "Moderate / Brand-safe", "Search Intent": "Fair pricing, dignified quality, reliable value", "Where to Place": "H1 heading, category intros, banner headlines"},
+        {"Modifier": "budget / budget prices", "Search Volume": "Moderate", "Search Intent": "Smart spending, student or month-end budgeting", "Where to Place": "Filter tags, body copy, shopping guides"},
+        {"Modifier": "value / best value", "Search Volume": "Moderate", "Search Intent": "Quality-to-cost ratio, smart purchase", "Where to Place": "Subheadings, product descriptions, feature bullets"},
+        {"Modifier": "low price / best prices", "Search Volume": "High (Commercial intent)", "Search Intent": "Direct price comparison, brand guarantee", "Where to Place": "PEP brand tagline ('Best prices and more'), promo CTA buttons"}
+    ]
+    st.dataframe(pd.DataFrame(aff_guide_data), use_container_width=True, hide_index=True)
+    
     st.divider()
     
     st.markdown("### 📅 South African Retail Calendar & Peak Search Timing")
